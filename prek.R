@@ -43,3 +43,7 @@ zip_choropleth(agg,
   county_zoom=nyc_fips,
   title="2014 New York City Pre-K Seats added",
   legend="New Seats")
+
+joint<-left_join(agg,tax1,by="region")
+regr<-lm(value.y~value.x,joint)
+summary(regr)
