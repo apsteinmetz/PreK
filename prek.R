@@ -6,21 +6,19 @@ library(dplyr)
 # compare Manhattan's Lower East Side and Upper East Side
 manhattan_les = c("10002", "10003", "10009")
 manhattan_ues = c("10021", "10028", "10044", "10128")
-zip_choropleth_acs("B19301", num_colors=1, zip_zoom=c(manhattan_les, manhattan_ues))
-# zoom in on all ZCTAs in the 5 counties (boroughs) of New York City
+#zip_choropleth_acs("B19301", num_colors=1, zip_zoom=c(manhattan_les, manhattan_ues))
+## zoom in on all ZCTAs in the 5 counties (boroughs) of New York City
+#acs.code.percapitainc<-"B19301"
+#acs.code.pop<-"B01301"
+#zip_choropleth_acs(acs.code.percapitainc, endyear=2013,span=5,county_zoom=nyc_fips)
+#income.data=acs.fetch(geo=geo.make(state="NY",county=c("Kings","Queens","Richmond","New York","Bronx"), county.subdivision ="*"), table.number="B19301")
+
 nyc_fips = c(36005, 36047, 36061, 36081, 36085)
-acs.code.percapitainc<-"B19301"
-acs.code.pop<-"B01301"
 
-zip_choropleth_acs(acs.code.percapitainc, endyear=2013,span=5,county_zoom=nyc_fips)
-
-income.data=acs.fetch(geo=geo.make(state="NY",
-                                   county=c("Kings","Queens","Richmond","New York","Bronx"), county.subdivision ="*"), table.number="B19301")
-
-nytax<-read.csv("NYTAX.csv",colClasses = "integer")
-tax1<-nytax%>%select(region=Zip,value=AGI)%>%filter(region != 99999)
+nytax<-read.csv("NYTAX.csv")
+tax1<-nytax
+names(tax1)<-c("region","count","TotInc","value")
 tax1$region<-as.character(tax1$region)
-tax1$value=as.numeric(sub(",","",tax1$value))
 zip_choropleth(tax1,
                county_zoom=nyc_fips,
                title="2013 New York City AGI",
