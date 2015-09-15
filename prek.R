@@ -3,6 +3,10 @@ library(choroplethrZip)
 library(acs)
 library(stringr)
 library(dplyr)
+
+#census api key
+#api.key.install("your key here")
+
 # compare Manhattan's Lower East Side and Upper East Side
 manhattan_les = c("10002", "10003", "10009")
 manhattan_ues = c("10021", "10028", "10044", "10128")
@@ -13,7 +17,29 @@ manhattan_ues = c("10021", "10028", "10044", "10128")
 #zip_choropleth_acs(acs.code.percapitainc, endyear=2013,span=5,county_zoom=nyc_fips)
 #income.data=acs.fetch(geo=geo.make(state="NY",county=c("Kings","Queens","Richmond","New York","Bronx"), county.subdivision ="*"), table.number="B19301")
 
-nyc_fips = c(36005, 36047, 36061, 36081, 36085)
+
+# NYC county codes
+nyc_fips = c(36085,36005, 36047, 36061, 36081)
+#get the zips for all nyc counties
+data("zip.regions")
+nyc_zips<-data.frame(county.fips.numeric=nyc_fips)%>%inner_join(zip.regions)%>%select(region)%>%t
+# make an ACS geo set
+nycgeo<- geo.make(zip.code = nyc_zips,check =T)
+income<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B19301")
+#put acs data in a form for rendering
+inc<-cbind(geography(income),estimate(income))
+names(inc)<-c("NAME","region","value")
+#needs some cleanup of dupes. I don't know why
+inc<-distinct(select(inc,region,value))
+
+#the following are equivalent
+zip_choropleth_acs(tableId="B19301", zip_zoom=nyc_zips)
+zip_choropleth_acs(tableId="B19301", county_zoom=nyc_fips)
+zip_choropleth(inc,
+               county_zoom=nyc_fips,
+               title="2011 Per Capita Income",
+               legend="Income",
+               num_colors=8)
 
 nytax<-read.csv("NYTAX.csv")
 tax1<-nytax
