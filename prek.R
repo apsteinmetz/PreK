@@ -32,6 +32,11 @@ names(inc)<-c("NAME","region","value")
 #needs some cleanup of dupes. I don't know why
 inc<-distinct(select(inc,region,value))
 
+kids<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
+
+zip_choropleth_acs(tableId="B09001", zip_zoom=nyc_zips)
+
+
 #the following are equivalent
 zip_choropleth_acs(tableId="B19301", zip_zoom=nyc_zips)
 zip_choropleth_acs(tableId="B19301", county_zoom=nyc_fips)
@@ -52,7 +57,7 @@ zip_choropleth(tax1,
                num_colors=8)
 
 pke<-read.csv("pre_k_expansion.csv",header = FALSE)
-tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+)(\\d+) (\\d+)"
+tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+) - - (\\d+) (\\d+)"
 
 pke1<-apply(X=pke,MARGIN=1,FUN=str_match,tokens)
 pke2<-as.data.frame(t(pke1))[,c(-1,-2,-9)]
@@ -71,3 +76,4 @@ zip_choropleth(agg,
 joint<-left_join(agg,tax1,by="region")
 regr<-lm(value.y~value.x,joint)
 summary(regr)
+
