@@ -78,26 +78,36 @@ regr<-lm(value.y~value.x,joint)
 summary(regr)
 
 #extract zips and seats from text files made from PDFs using PDFTOTEXT.EXE (XPDF)
-pkseattokens <-"(Address: )([[:alnum:]- ]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM)"
+pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
 
 txt1<-scan("bronx.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-bronx<-cbind("Bronx",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+bronx<-cbind(borough="Bronx",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("manhattan.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-manhattan<-cbind("Manhattan",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+manhattan<-cbind(borough="Manhattan",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("brooklyn.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-brooklyn<-cbind("Brooklyn",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+brooklyn<-cbind(borough="Brooklyn",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("queens.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-queens<-cbind("Queens",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+queens<-cbind(borough="Queens",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("staten.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-staten<-cbind("Staten Island",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+staten<-cbind(borough="Staten Island",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+
+#merge nyc together
+seats<-rbind(manhattan,bronx)
+seats<-rbind(seats,queens)
+seats<-rbind(seats,brooklyn)
+seats<-rbind(seats,staten)
+names(seats)<-c("borough","zip","seats","daylength")
+seats$seats<-as.numeric(seats$seats)
+
+
 
