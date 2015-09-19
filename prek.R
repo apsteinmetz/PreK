@@ -3,24 +3,53 @@ library(choroplethrZip)
 library(acs)
 library(stringr)
 library(dplyr)
+
+#census api key
+#api.key.install("your key here")
+
 # compare Manhattan's Lower East Side and Upper East Side
 manhattan_les = c("10002", "10003", "10009")
 manhattan_ues = c("10021", "10028", "10044", "10128")
-zip_choropleth_acs("B19301", num_colors=1, zip_zoom=c(manhattan_les, manhattan_ues))
-# zoom in on all ZCTAs in the 5 counties (boroughs) of New York City
-nyc_fips = c(36005, 36047, 36061, 36081, 36085)
-acs.code.percapitainc<-"B19301"
-acs.code.pop<-"B01301"
+#zip_choropleth_acs("B19301", num_colors=1, zip_zoom=c(manhattan_les, manhattan_ues))
+## zoom in on all ZCTAs in the 5 counties (boroughs) of New York City
+#acs.code.percapitainc<-"B19301"
+#acs.code.pop<-"B01301"
+#zip_choropleth_acs(acs.code.percapitainc, endyear=2013,span=5,county_zoom=nyc_fips)
+#income.data=acs.fetch(geo=geo.make(state="NY",county=c("Kings","Queens","Richmond","New York","Bronx"), county.subdivision ="*"), table.number="B19301")
 
-zip_choropleth_acs(acs.code.percapitainc, endyear=2013,span=5,county_zoom=nyc_fips)
 
-income.data=acs.fetch(geo=geo.make(state="NY",
-                                   county=c("Kings","Queens","Richmond","New York","Bronx"), county.subdivision ="*"), table.number="B19301")
+# NYC county codes
+nyc_fips = c(36085,36005, 36047, 36061, 36081)
+#get the zips for all nyc counties
+data("zip.regions")
+nyc_zips<-data.frame(county.fips.numeric=nyc_fips)%>%inner_join(zip.regions)%>%select(region)%>%t
+# make an ACS geo set
+nycgeo<- geo.make(zip.code = nyc_zips,check =T)
+income<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B19301")
+#put acs data in a form for rendering
+inc<-cbind(geography(income),estimate(income))
+names(inc)<-c("NAME","region","value")
+#needs some cleanup of dupes. I don't know why
+inc<-distinct(select(inc,region,value))
 
-nytax<-read.csv("NYTAX.csv",colClasses = "integer")
-tax1<-nytax%>%select(region=Zip,value=AGI)%>%filter(region != 99999)
+kids<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
+
+zip_choropleth_acs(tableId="B09001", zip_zoom=nyc_zips)
+
+
+#the following are equivalent
+zip_choropleth_acs(tableId="B19301", zip_zoom=nyc_zips)
+zip_choropleth_acs(tableId="B19301", county_zoom=nyc_fips)
+zip_choropleth(inc,
+               county_zoom=nyc_fips,
+               title="2011 Per Capita Income",
+               legend="Income",
+               num_colors=8)
+
+nytax<-read.csv("NYTAX.csv")
+tax1<-nytax
+names(tax1)<-c("region","count","TotInc","value")
 tax1$region<-as.character(tax1$region)
-tax1$value=as.numeric(sub(",","",tax1$value))
 zip_choropleth(tax1,
                county_zoom=nyc_fips,
                title="2013 New York City AGI",
@@ -28,7 +57,7 @@ zip_choropleth(tax1,
                num_colors=8)
 
 pke<-read.csv("pre_k_expansion.csv",header = FALSE)
-tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+)(\\d+) (\\d+)"
+tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+) - - (\\d+) (\\d+)"
 
 pke1<-apply(X=pke,MARGIN=1,FUN=str_match,tokens)
 pke2<-as.data.frame(t(pke1))[,c(-1,-2,-9)]
@@ -47,3 +76,4 @@ zip_choropleth(agg,
 joint<-left_join(agg,tax1,by="region")
 regr<-lm(value.y~value.x,joint)
 summary(regr)
+
