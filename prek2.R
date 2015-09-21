@@ -3,27 +3,19 @@ library(choroplethrZip)
 library(acs)
 library(stringr)
 library(dplyr)
-library(tm)
+
 #census api key
 #api.key.install("your key here")
 
+# compare Manhattan's Lower East Side and Upper East Side
+manhattan_les = c("10002", "10003", "10009")
+manhattan_ues = c("10021", "10028", "10044", "10128")
+#zip_choropleth_acs("B19301", num_colors=1, zip_zoom=c(manhattan_les, manhattan_ues))
 ## zoom in on all ZCTAs in the 5 counties (boroughs) of New York City
 #acs.code.percapitainc<-"B19301"
 #acs.code.pop<-"B01301"
 #zip_choropleth_acs(acs.code.percapitainc, endyear=2013,span=5,county_zoom=nyc_fips)
 #income.data=acs.fetch(geo=geo.make(state="NY",county=c("Kings","Queens","Richmond","New York","Bronx"), county.subdivision ="*"), table.number="B19301")
-
-#DOE pre-k directories
-# http://schools.nyc.gov/NR/rdonlyres/1F829192-ABE8-4BE6-93B5-1A33A6CCC32E/0/2015PreKDirectoryManhattan.pdf
-# http://schools.nyc.gov/NR/rdonlyres/5337838E-EBE8-479A-8AB5-616C135A4B3C/0/2015PreKDirectoryBronx.pdf
-# http://schools.nyc.gov/NR/rdonlyres/F2D95BF9-553A-4B92-BEAA-785A2D6C0798/0/2015PreKDirectoryBrooklyn.pdf
-# http://schools.nyc.gov/NR/rdonlyres/B9B2080A-0121-4C73-AF4A-45CBC3E28CA3/0/2015PreKDirectoryQueens.pdf
-# http://schools.nyc.gov/NR/rdonlyres/4DE31FBF-DA0D-4628-B709-F9A7421F7152/0/2015PreKDirectoryStatenIsland.pdf
-
-uri = '2015PreKDirectoryManhattan.pdf'
-
-pkdMan = readPDF(control = list(text = "-layout"))(elem = list(uri = uri),
-                                                language = "en", id = "id1")   
 
 
 # NYC county codes
@@ -86,36 +78,26 @@ regr<-lm(value.y~value.x,joint)
 summary(regr)
 
 #extract zips and seats from text files made from PDFs using PDFTOTEXT.EXE (XPDF)
-pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
+pkseattokens <-"(Address: )([[:alnum:]- ]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM)"
 
 txt1<-scan("bronx.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-bronx<-cbind(borough="Bronx",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+bronx<-cbind("Bronx",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("manhattan.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-manhattan<-cbind(borough="Manhattan",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+manhattan<-cbind("Manhattan",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("brooklyn.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-brooklyn<-cbind(borough="Brooklyn",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+brooklyn<-cbind("Brooklyn",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("queens.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-queens<-cbind(borough="Queens",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
+queens<-cbind("Queens",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 txt1<-scan("staten.txt",what="character",sep="\n")
 txt2<-txt1[grep("^ +Address",txt1)]
 txt2<-sub("'","",txt2)
-staten<-cbind(borough="Staten Island",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
-
-#merge nyc together
-seats<-rbind(manhattan,bronx)
-seats<-rbind(seats,queens)
-seats<-rbind(seats,brooklyn)
-seats<-rbind(seats,staten)
-names(seats)<-c("borough","zip","seats","daylength")
-seats$seats<-as.numeric(seats$seats)
-
-
+staten<-cbind("Staten Island",as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)])
 
