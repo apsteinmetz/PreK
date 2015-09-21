@@ -36,13 +36,16 @@ nycgeo<- geo.make(zip.code = nyc_zips,check =T)
 income<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B19301")
 #put acs data in a form for rendering
 inc<-cbind(geography(income),estimate(income))
-names(inc)<-c("NAME","region","value")
+names(inc)<-c("NAME","zip","perCapitaIncome")
 #needs some cleanup of dupes. I don't know why
-inc<-distinct(select(inc,region,value))
+inc<-distinct(select(inc,zip,perCapitaIncome))
 
-kids<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
+kidsUnder3<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
+kids<-cbind(geography(kidsUnder3),estimate(kidsUnder3))
+names(kids)<-c("NAME","zip","kidsUnder3")
+kids<-distinct(select(kids,zip,kidsUnder3))
 
-zip_choropleth_acs(tableId="B09001", zip_zoom=nyc_zips)
+#zip_choropleth_acs(tableId="B09001", zip_zoom=nyc_zips)
 
 
 #the following are equivalent
@@ -115,7 +118,23 @@ seats<-rbind(seats,queens)
 seats<-rbind(seats,brooklyn)
 seats<-rbind(seats,staten)
 names(seats)<-c("borough","zip","seats","daylength")
-seats$seats<-as.numeric(seats$seats)
+seats$seats<-as.integer(seats$seats)
+
+sumDayLength<-seats%>%group_by(daylength)%>%summarise(NumSchools=n(),NumSeats=sum(seats,na.rm=TRUE))
+print(SumDayLength)
+
+
+sumSeats<-seats%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm=TRUE))
+sumSeatsChor<-sumSeats
+names(sumSeatsChor)<-c("region","value")
+#zip_choropleth(SumSeatsChor,zip_zoom = nyc_zips)
+
+#make a meta table with population, seats, per-capita income and per capita seats
+data("df_pop_zip")
+sumPopChor<-df_pop_zip%>%filter(region %in% nyc_zips)%>%filter(value>0)
+sumPop<-sumPopChor
+names(sumPop)<-c("zip","pop")
+join(sumSeats,sumPop)
 
 
 
