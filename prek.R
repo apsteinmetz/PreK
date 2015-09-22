@@ -120,6 +120,8 @@ seats<-rbind(seats,staten)
 names(seats)<-c("borough","zip","seats","daylength")
 seats$seats<-as.integer(seats$seats)
 
+
+
 sumDayLength<-seats%>%group_by(daylength)%>%summarise(NumSchools=n(),NumSeats=sum(seats,na.rm=TRUE))
 print(SumDayLength)
 
@@ -134,8 +136,32 @@ data("df_pop_zip")
 sumPopChor<-df_pop_zip%>%filter(region %in% nyc_zips)%>%filter(value>0)
 sumPop<-sumPopChor
 names(sumPop)<-c("zip","pop")
+
+#combine the variables
 allData<-sumSeats%>%join(sumPop)%>%join(kids)%>%join(inc)%>%na.omit()
+#get rid of airports
+allData<-filter(allData,zip!=11371 & zip!=11430)
+
+# add normalized seats per capita/kid
 allData<-mutate(allData,seatsPerKid = numSeats/ kidsUnder3,seatsPerCapita=numSeats/pop)
+
+#normalize income cohorts
+#compute income quantiles
+fn<-ecdf(allData$perCapitaIncome)
+allData<-mutate(allData,incomeQuantile=fn(allData$perCapitaIncome))
+#compute seatsPerKid quantiles
+fn<-ecdf(allData$seatsPerKid)
+allData<-mutate(allData,seatsQuantile=fn(allData$seatsPerKid))
+
+# set quintile bins for bi-variate plot
+allData<-mutate(allData,seatsQuintile=cut2(seatsQuantile,g=5,levels.mean = TRUE))
+allData<-mutate(allData,incomeQuintile=cut2(incomeQuantile,g=5,levels.mean = TRUE))
+levels(allData$seatsQuintile)<-c(5,4,3,2,1)
+levels(allData$incomeQuintile)<-c(5,4,3,2,1)
+
 plot(allData$seatsPerKid,allData$perCapitaIncome)
+
+#crosstab of number of zip codes in income and seat quintiles
+xtab<-as.matrix(xtabs(~seatsQuintile+incomeQuintile,data=allData))
 
 
