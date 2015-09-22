@@ -134,7 +134,8 @@ data("df_pop_zip")
 sumPopChor<-df_pop_zip%>%filter(region %in% nyc_zips)%>%filter(value>0)
 sumPop<-sumPopChor
 names(sumPop)<-c("zip","pop")
-join(sumSeats,sumPop)
-
+allData<-sumSeats%>%join(sumPop)%>%join(kids)%>%join(inc)%>%na.omit()
+allData<-mutate(allData,seatsPerKid = numSeats/ kidsUnder3,seatsPerCapita=numSeats/pop)
+plot(allData$seatsPerKid,allData$perCapitaIncome)
 
 
