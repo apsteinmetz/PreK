@@ -5,6 +5,7 @@ library(stringr)
 library(dplyr)
 library(tm)
 library(Hmisc)
+library(reshape2)
 library(ggplot2)
 library(cowplot)
 #census api key
@@ -192,6 +193,18 @@ gg<-gg+guides(fill = guide_legend(nrow = 3,override.aes = list(colour=NULL)))
 gg<-gg + theme(legend.text=element_blank())
 gg<-ggdraw(gg) + draw_text(text = "More Income -->",x=0.91,y=0.58)
 gg<-ggdraw(gg) + draw_text(text = "More Seats -->",x=0.84,y=0.49,angle=270)
+
+#create a plot that will be the legend itself
+legendGoal=melt(matrix(1:9,nrow=3))
+test<-ggplot(legendGoal, aes(Var2,Var1,fill = as.factor(value)))+ geom_tile()
+test<- test + scale_fill_manual(name="",values=bvColors)
+test<-test+theme(legend.position="none")
+test<-test + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab("More Income -->")
+test<-test + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("More Seats -->")
+test<-test+theme(axis.text=element_blank())
+test<-test+theme(line=element_blank())
+#put both plots on a grid
+ggdraw()+ draw_plot(test,0.1,0.7,width=0.2,height=0.2) + draw_plot(gg)
 
 
 #crosstab of number of zip codes in income and seat Bins
