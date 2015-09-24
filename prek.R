@@ -4,6 +4,9 @@ library(acs)
 library(stringr)
 library(dplyr)
 library(tm)
+library(Hmisc)
+library(ggplot2)
+library(cowplot)
 #census api key
 #api.key.install("your key here")
 
@@ -33,6 +36,7 @@ data("zip.regions")
 nyc_zips<-data.frame(county.fips.numeric=nyc_fips)%>%inner_join(zip.regions)%>%select(region)%>%t
 # make an ACS geo set
 nycgeo<- geo.make(zip.code = nyc_zips,check =T)
+
 income<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B19301")
 #put acs data in a form for rendering
 inc<-cbind(geography(income),estimate(income))
@@ -49,23 +53,23 @@ kids<-distinct(select(kids,zip,kidsUnder3))
 
 
 #the following are equivalent
-zip_choropleth_acs(tableId="B19301", zip_zoom=nyc_zips)
-zip_choropleth_acs(tableId="B19301", county_zoom=nyc_fips)
-zip_choropleth(inc,
-               county_zoom=nyc_fips,
-               title="2011 Per Capita Income",
-               legend="Income",
-               num_colors=8)
+#zip_choropleth_acs(tableId="B19301", zip_zoom=nyc_zips)
+#zip_choropleth_acs(tableId="B19301", county_zoom=nyc_fips)
+#zip_choropleth(inc,
+#               county_zoom=nyc_fips,
+#               title="2011 Per Capita Income",
+#               legend="Income",
+#               num_colors=8)
 
-nytax<-read.csv("NYTAX.csv")
-tax1<-nytax
-names(tax1)<-c("region","count","TotInc","value")
-tax1$region<-as.character(tax1$region)
-zip_choropleth(tax1,
-               county_zoom=nyc_fips,
-               title="2013 New York City AGI",
-               legend="AGI",
-               num_colors=8)
+#nytax<-read.csv("NYTAX.csv")
+#tax1<-nytax
+#names(tax1)<-c("region","count","TotInc","value")
+#tax1$region<-as.character(tax1$region)
+#zip_choropleth(tax1,
+#               county_zoom=nyc_fips,
+#               title="2013 New York City AGI",
+#               legend="AGI",
+#               num_colors=8)
 
 pke<-read.csv("pre_k_expansion.csv",header = FALSE)
 tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+) - - (\\d+) (\\d+)"
@@ -84,9 +88,9 @@ zip_choropleth(agg,
   title="2014 New York City Pre-K Seats added",
   legend="New Seats")
 
-joint<-left_join(agg,tax1,by="region")
-regr<-lm(value.y~value.x,joint)
-summary(regr)
+#joint<-left_join(agg,tax1,by="region")
+#regr<-lm(value.y~value.x,joint)
+#summary(regr)
 
 #extract zips and seats from text files made from PDFs using PDFTOTEXT.EXE (XPDF)
 pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
@@ -123,13 +127,13 @@ seats$seats<-as.integer(seats$seats)
 
 
 sumDayLength<-seats%>%group_by(daylength)%>%summarise(NumSchools=n(),NumSeats=sum(seats,na.rm=TRUE))
-print(SumDayLength)
+print(sumDayLength)
 
 
 sumSeats<-seats%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm=TRUE))
 sumSeatsChor<-sumSeats
 names(sumSeatsChor)<-c("region","value")
-#zip_choropleth(SumSeatsChor,zip_zoom = nyc_zips)
+zip_choropleth(sumSeatsChor,zip_zoom = nyc_zips)
 
 #make a meta table with population, seats, per-capita income and per capita seats
 data("df_pop_zip")
@@ -137,31 +141,67 @@ sumPopChor<-df_pop_zip%>%filter(region %in% nyc_zips)%>%filter(value>0)
 sumPop<-sumPopChor
 names(sumPop)<-c("zip","pop")
 
+
+
 #combine the variables
 allData<-sumSeats%>%join(sumPop)%>%join(kids)%>%join(inc)%>%na.omit()
 #get rid of airports
 allData<-filter(allData,zip!=11371 & zip!=11430)
 
 # add normalized seats per capita/kid
-allData<-mutate(allData,seatsPerKid = numSeats/ kidsUnder3,seatsPerCapita=numSeats/pop)
+allData<-mutate(allData,seatsPer100Kids = numSeats/ kidsUnder3*100,seatsPerCapita=numSeats/pop)
 
 #normalize income cohorts
 #compute income quantiles
 fn<-ecdf(allData$perCapitaIncome)
 allData<-mutate(allData,incomeQuantile=fn(allData$perCapitaIncome))
-#compute seatsPerKid quantiles
-fn<-ecdf(allData$seatsPerKid)
-allData<-mutate(allData,seatsQuantile=fn(allData$seatsPerKid))
+#compute seatsPer100Kids quantiles
+fn<-ecdf(allData$seatsPer100Kids)
+allData<-mutate(allData,seatsQuantile=fn(allData$seatsPer100Kids))
 
-# set quintile bins for bi-variate plot
-allData<-mutate(allData,seatsQuintile=cut2(seatsQuantile,g=5,levels.mean = TRUE))
-allData<-mutate(allData,incomeQuintile=cut2(incomeQuantile,g=5,levels.mean = TRUE))
-levels(allData$seatsQuintile)<-c(5,4,3,2,1)
-levels(allData$incomeQuintile)<-c(5,4,3,2,1)
+#is there an obvious relationship between income and seats?
+plot(allData$seatsPer100Kids,allData$perCapitaIncome)
 
-plot(allData$seatsPerKid,allData$perCapitaIncome)
 
-#crosstab of number of zip codes in income and seat quintiles
-xtab<-as.matrix(xtabs(~seatsQuintile+incomeQuintile,data=allData))
+# set bins for bi-variate plot
+bins<-3
+allData<-mutate(allData,seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE))
+allData<-mutate(allData,incomeBin=cut2(perCapitaIncome,g=bins,levels.mean = TRUE))
 
+
+
+# create a data frame exclusively for use in a chorpleth object
+# contains only zips as "region" and income/seats crosstab as "value"
+bvc_df<-allData
+levels(bvc_df$seatsBin)<-bins:1
+levels(bvc_df$incomeBin)<-bins:1
+bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
+#use color scheme shown here http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/
+#assumes 9 levels
+
+bvc<-ZipChoropleth$new(bvc_df)
+bvc$title<-"NYC Per Capita Income vs. Pre-K Seats Per Child Under 3"
+bvc$legend<-"SeatsRank - IncomeRank"
+#use color scheme shown here http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/
+bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
+bvc$ggplot_scale = scale_fill_manual(name="", values=bvColors, drop=FALSE)
+bvc$set_zoom_zip(county_zoom=nyc_fips,state_zoom = NULL,msa_zoom = NULL,zip_zoom = NULL)
+# further annotate plot in the ggplot2 environment
+gg<-bvc$render()
+gg<-gg+guides(fill = guide_legend(nrow = 3,override.aes = list(colour=NULL)))
+gg<-gg + theme(legend.text=element_blank())
+gg<-ggdraw(gg) + draw_text(text = "More Income -->",x=0.91,y=0.58)
+gg<-ggdraw(gg) + draw_text(text = "More Seats -->",x=0.84,y=0.49,angle=270)
+
+
+#crosstab of number of zip codes in income and seat Bins
+xtab<-table(allData$seatsBin,allData$incomeBin)
+hm<-as.data.frame(xtab)
+names(hm)<-c("SeatsPer100Kids","IncomePerCapita","Freq")
+
+
+xtab
+#show heatmap of crosstab
+ggplot(hm, aes(SeatsPer100Kids, IncomePerCapita)) + geom_tile(aes(fill = Freq),colour = "white") +
+       scale_fill_gradient(low = "white", high = "steelblue")
 
