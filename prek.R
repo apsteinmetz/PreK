@@ -77,19 +77,19 @@ tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+) - - (\\d+
 
 pke1<-apply(X=pke,MARGIN=1,FUN=str_match,tokens)
 pke2<-as.data.frame(t(pke1))[,c(-1,-2,-9)]
-header<-c("District","Address","Zip","Add","Note","Total")
+header<-c("District","Address","zip","Add","Note","Total")
 names(pke2)<-header
 pke2$Add<-as.numeric(levels(pke2$Add)[pke2$Add])
 pke2$Total<-as.numeric(levels(pke2$Total)[pke2$Total])
-byzip<-group_by(pke2,Zip)
-agg<-summarise(byzip,value=sum(Total,na.rm=TRUE))
-names(agg)<-c("region","value")
-zip_choropleth(agg,
+byzip<-group_by(pke2,zip)
+aggNew<-summarise(byzip,newSeats=sum(Total,na.rm=TRUE))
+names(aggNew)<-c("region","value")
+zip_choropleth(aggNew,
   county_zoom=nyc_fips,
   title="2014 New York City Pre-K Seats added",
   legend="New Seats")
 
-#joint<-left_join(agg,tax1,by="region")
+#joint<-left_join(aggNew,tax1,by="region")
 #regr<-lm(value.y~value.x,joint)
 #summary(regr)
 
@@ -145,7 +145,7 @@ names(sumPop)<-c("zip","pop")
 
 
 #combine the variables
-allData<-sumSeats%>%join(sumPop)%>%join(kids)%>%join(inc)%>%na.omit()
+allData<-sumSeats%>%join(sumPop)%>%join(kids)%>%join(inc)%>%join(aggNew)%>%na.omit()
 #get rid of airports
 allData<-filter(allData,zip!=11371 & zip!=11430)
 
@@ -159,15 +159,19 @@ allData<-mutate(allData,incomeQuantile=fn(allData$perCapitaIncome))
 #compute seatsPer100Kids quantiles
 fn<-ecdf(allData$seatsPer100Kids)
 allData<-mutate(allData,seatsQuantile=fn(allData$seatsPer100Kids))
+#compute new seats quantiles
+fn<-ecdf(allData$newSeats)
+allData<-mutate(allData,newSeatsQuantile=fn(allData$newSeats))
 
 #is there an obvious relationship between income and seats?
 plot(allData$seatsPer100Kids,allData$perCapitaIncome)
-
+plot(allData$newSeats,allData$perCapitaIncome)
 
 # set bins for bi-variate plot
 bins<-3
 allData<-mutate(allData,seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE))
 allData<-mutate(allData,incomeBin=cut2(perCapitaIncome,g=bins,levels.mean = TRUE))
+allData<-mutate(allData,newSeatsBin=cut2(newSeats,g=bins,levels.mean = TRUE))
 
 
 
@@ -176,42 +180,56 @@ allData<-mutate(allData,incomeBin=cut2(perCapitaIncome,g=bins,levels.mean = TRUE
 bvc_df<-allData
 levels(bvc_df$seatsBin)<-bins:1
 levels(bvc_df$incomeBin)<-bins:1
-bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
+levels(bvc_df$newSeatsBin)<-bins:1
+
+JustNew <- TRUE
+# plot just new seats
+if (JustNew) {
+  bvc_df<-transmute(bvc_df,region=zip,value=paste(newSeatsBin,'-',incomeBin,sep=''))
+  title1<-"NYC Per Capita Income vs. New Pre-K Seats in 2014-2015"
+  
+} else {
+  #plot all seats
+  bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
+  title1<-"NYC Per Capita Income in 2011 vs. Pre-K Seats Per Child 3-5 in 2015"
+  
+}
+
+#create choropleth object
+bvc<-ZipChoropleth$new(bvc_df)
+bvc$title<-title1
 #use color scheme shown here http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/
 #assumes 9 levels
-
-bvc<-ZipChoropleth$new(bvc_df)
-bvc$title<-"NYC Per Capita Income vs. Pre-K Seats Per Child Under 3"
-bvc$legend<-"SeatsRank - IncomeRank"
-#use color scheme shown here http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/
 bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
 bvc$ggplot_scale = scale_fill_manual(name="", values=bvColors, drop=FALSE)
 bvc$set_zoom_zip(county_zoom=nyc_fips,state_zoom = NULL,msa_zoom = NULL,zip_zoom = NULL)
 # further annotate plot in the ggplot2 environment
-gg<-bvc$render()
-gg<-gg+guides(fill = guide_legend(nrow = 3,override.aes = list(colour=NULL)))
-gg<-gg + theme(legend.text=element_blank())
-gg<-ggdraw(gg) + draw_text(text = "More Income -->",x=0.91,y=0.58)
-gg<-ggdraw(gg) + draw_text(text = "More Seats -->",x=0.84,y=0.49,angle=270)
+gg<-bvc$render() + theme(legend.position="none")
 
-#create a plot that will be the legend itself
+# create 3x3 legend Use cowplot package for labels
+# deprecated in favor of custom rolled legend below
+#gg<-gg+guides(fill = guide_legend(nrow = 3,override.aes = list(colour=NULL)))
+#gg<-gg + theme(legend.text=element_blank())
+#gg<-ggdraw(gg) + draw_text(text = "More Income -->",x=0.91,y=0.58)
+#gg<-ggdraw(gg) + draw_text(text = "More Seats -->",x=0.84,y=0.49,angle=270)
+
+#use cowplot to create a plot that will be the legend itself
 legendGoal=melt(matrix(1:9,nrow=3))
-test<-ggplot(legendGoal, aes(Var2,Var1,fill = as.factor(value)))+ geom_tile()
-test<- test + scale_fill_manual(name="",values=bvColors)
-test<-test+theme(legend.position="none")
-test<-test + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab("More Income -->")
-test<-test + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("More Seats -->")
-test<-test+theme(axis.text=element_blank())
-test<-test+theme(line=element_blank())
+lg<-ggplot(legendGoal, aes(Var2,Var1,fill = as.factor(value)))+ geom_tile()
+lg<- lg + scale_fill_manual(name="",values=bvColors)
+lg<-lg+theme(legend.position="none")
+lg<-lg + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab("More Income -->")
+lg<-lg + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("More Seats -->")
+lg<-lg+theme(axis.text=element_blank())
+lg<-lg+theme(line=element_blank())
 #put both plots on a grid
-ggdraw()+ draw_plot(test,0.1,0.7,width=0.2,height=0.2) + draw_plot(gg)
+ggdraw()+ draw_plot(lg,0.1,0.7,width=0.2,height=0.2) + draw_plot(gg)
 
 
 #crosstab of number of zip codes in income and seat Bins
 xtab<-table(allData$seatsBin,allData$incomeBin)
 hm<-as.data.frame(xtab)
 names(hm)<-c("SeatsPer100Kids","IncomePerCapita","Freq")
-
 
 xtab
 #show heatmap of crosstab
