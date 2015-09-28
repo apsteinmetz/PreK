@@ -19,17 +19,26 @@ dests <- tempfile(str_match(urls,"Directory(\\w.+).pdf")[,2],fileext = ".pdf")
 exePath = "C:\\Users\\nsteinm\\Documents\\R\\"
 exe <- paste(exePath,"pdftotext.exe",sep="")
 
-for (i in 1:length(urls)) {
+txt<- NULL
+firstPage = 28
 
+for (i in 1:length(urls)) {
+  download.file(urls[i],destfile = dests[i],mode = "wb")
   # pdftotxt.exe is in current directory and convert pdf to text
-  system(paste("\"", exe, "\" \"", dest, "\"", sep = ""), wait = F)
+  result<-system(paste(exe, "-f", firstPage, dests[i], sep = " "), intern=T)
   # get txt-file name and open it  
-  filetxt <- sub(".pdf", ".txt", dest)
+  filetxt <- sub(".pdf", ".txt", dests[i])
   #shell.exec(filetxt)
 
-  txt <- readLines(filetxt) # don't mind warning..
-  cat
+  txt <- append(txt,readLines(filetxt)) # don't mind warning..
 }
+
+#needs work
+txt2<-txt[grep("Address:",txt)]
+txt2<-sub("'","",txt2)
+seats<-as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
+names(seats)<-c("borough","zip","seats","daylength")
+seats$seats<-as.integer(seats$seats)
 
 
 #nytax<-read.csv("NYTAX.csv")
