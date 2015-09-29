@@ -8,6 +8,46 @@ library(Hmisc)
 library(reshape2)
 
 
+#zip_choropleth_acs(tableId="B09001", zip_zoom=nyc_zips)
+
+
+#the following are equivalent
+#zip_choropleth_acs(tableId="B19301", zip_zoom=nyc_zips)
+#zip_choropleth_acs(tableId="B19301", county_zoom=nyc_fips)
+#zip_choropleth(inc,
+#               county_zoom=nyc_fips,
+#               title="2011 Per Capita Income",
+#               legend="Income",
+#               num_colors=8)
+
+#nytax<-read.csv("NYTAX.csv")
+#tax1<-nytax
+#names(tax1)<-c("region","count","TotInc","value")
+#tax1$region<-as.character(tax1$region)
+#zip_choropleth(tax1,
+#               county_zoom=nyc_fips,
+#               title="2013 New York City AGI",
+#               legend="AGI",
+#               num_colors=8)
+
+pke<-read.csv("pre_k_expansion.csv",header = FALSE)
+tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+) - - (\\d+) (\\d+)"
+
+pke1<-apply(X=pke,MARGIN=1,FUN=str_match,tokens)
+pke2<-as.data.frame(t(pke1))[,c(-1,-2,-9)]
+header<-c("District","Address","zip","Add","Note","Total")
+names(pke2)<-header
+pke2$Add<-as.numeric(levels(pke2$Add)[pke2$Add])
+pke2$Total<-as.numeric(levels(pke2$Total)[pke2$Total])
+byzip<-group_by(pke2,zip)
+aggNew<-summarise(byzip,newSeats=sum(Total,na.rm=TRUE))
+names(aggNew)<-c("region","value")
+zip_choropleth(aggNew,
+               county_zoom=nyc_fips,
+               title="2014 New York City Pre-K Seats added",
+               legend="New Seats")
+
+
 #DOE pre-k directories
 urls<- c("http://schools.nyc.gov/NR/rdonlyres/1F829192-ABE8-4BE6-93B5-1A33A6CCC32E/0/2015PreKDirectoryManhattan.pdf",
          "http://schools.nyc.gov/NR/rdonlyres/5337838E-EBE8-479A-8AB5-616C135A4B3C/0/2015PreKDirectoryBronx.pdf",
@@ -15,17 +55,19 @@ urls<- c("http://schools.nyc.gov/NR/rdonlyres/1F829192-ABE8-4BE6-93B5-1A33A6CCC3
          "http://schools.nyc.gov/NR/rdonlyres/B9B2080A-0121-4C73-AF4A-45CBC3E28CA3/0/2015PreKDirectoryQueens.pdf",
          "http://schools.nyc.gov/NR/rdonlyres/4DE31FBF-DA0D-4628-B709-F9A7421F7152/0/2015PreKDirectoryStatenIsland.pdf")
 
-dests <- tempfile(str_match(urls,"Directory(\\w.+).pdf")[,2],fileext = ".pdf")
 exePath = "C:\\Users\\nsteinm\\Documents\\R\\"
 exe <- paste(exePath,"pdftotext.exe",sep="")
 
+#regex to parse address line
+pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
 txt<- NULL
 firstPage = 28
 
+dests <- tempfile(str_match(urls,"Directory(\\w.+).pdf")[,2],fileext = ".pdf")
 for (i in 1:length(urls)) {
   download.file(urls[i],destfile = dests[i],mode = "wb")
-  # pdftotxt.exe is in current directory and convert pdf to text
-  result<-system(paste(exe, "-f", firstPage, dests[i], sep = " "), intern=T)
+  # pdftotxt.exe is in current directory and convert pdf to text using "table" style at firstpage
+  result<-system(paste(exe, "-table -f", firstPage, dests[i], sep = " "), intern=T)
   # get txt-file name and open it  
   filetxt <- sub(".pdf", ".txt", dests[i])
   #shell.exec(filetxt)
@@ -33,11 +75,12 @@ for (i in 1:length(urls)) {
   txt <- append(txt,readLines(filetxt)) # don't mind warning..
 }
 
-#needs work
+# find address line which contains zip and seat count
 txt2<-txt[grep("Address:",txt)]
+# strip chars that will mess up regex
 txt2<-sub("'","",txt2)
 seats<-as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
-names(seats)<-c("borough","zip","seats","daylength")
+names(seats)<-c("zip","seats","daylength")
 seats$seats<-as.integer(seats$seats)
 
 
