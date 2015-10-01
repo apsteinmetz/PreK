@@ -44,9 +44,12 @@ pop<-pop%>%select(zip,totPop)%>%distinct()%>%filter(totPop!=0)
 
 #where are zips with the most rugrats
 
-# THIS IS BROKEN
-kidsChor <- pop%>%join(kids)%>%transmute(region=zip,value=kidsUnder3/totalPop)
-zip_choropleth(sumSeatsChor,zip_zoom = nyc_zips,title = "Number of Pre-K Seats")
+
+kidsChor <- pop%>%inner_join(kids)%>%transmute(region=zip,value=kidsUnder3/totPop)
+zip_choropleth(kidsChor,zip_zoom = nyc_zips,title = "Number of Pre-K Seats")
+
+# if you want an underlying map and are using version 1.4 of zip_choropleth
+#zip_choropleth(kidsChor,zip_zoom = nyc_zips,title = "Number of Pre-K Seats",reference_map = TRUE)
 
 
 ######################################################################################
@@ -120,17 +123,22 @@ zip_choropleth(aggNew,
                county_zoom=nyc_fips,
                title="2014 New York City Pre-K Seats added",
                legend="New Seats")
+#restore column names
+names(aggNew)<-c("zip","newSeats")
+
 
 ################################################################################################
 #combine the variables
-allData<-sumSeats%>%join(sumPop)%>%join(kids)%>%join(inc)%>%join(aggNew)%>%na.omit()
+# data frame including new seats not working yet
+#allData<-sumSeats%>%join(pop)%>%join(kids)%>%join(inc)%>%join(aggNew)
+allData<-sumSeats%>%join(pop)%>%join(kids)%>%join(inc)
 #get rid of airports
 allData<-filter(allData,zip!=11371 & zip!=11430)
 
-# add normalized seats per capita/kid
-allData<-mutate(allData,seatsPer100Kids = numSeats/ kidsUnder3*100,seatsPerCapita=numSeats/pop)
 
-# NEW SOURCE OF INCOME NOT INCLUDED
+# add normalized seats per capita/kid
+allData<-mutate(allData,seatsPer100Kids = numSeats/ kidsUnder3*100,seatsPerCapita=numSeats/totPop)
+
 #normalize income cohorts
 #compute income quantiles
 fn<-ecdf(allData$perCapitaIncome)
@@ -139,18 +147,18 @@ allData<-mutate(allData,incomeQuantile=fn(allData$perCapitaIncome))
 fn<-ecdf(allData$seatsPer100Kids)
 allData<-mutate(allData,seatsQuantile=fn(allData$seatsPer100Kids))
 #compute new seats quantiles
-fn<-ecdf(allData$newSeats)
-allData<-mutate(allData,newSeatsQuantile=fn(allData$newSeats))
+#fn<-ecdf(allData$newSeats)
+#allData<-mutate(allData,newSeatsQuantile=fn(allData$newSeats))
 
 #is there an obvious relationship between income and seats?
 plot(allData$seatsPer100Kids,allData$perCapitaIncome)
-plot(allData$newSeats,allData$perCapitaIncome)
+# plot(allData$newSeats,allData$perCapitaIncome)
 
 # set bins for bi-variate plot
 bins<-3
 allData<-mutate(allData,seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE))
 allData<-mutate(allData,incomeBin=cut2(perCapitaIncome,g=bins,levels.mean = TRUE))
-allData<-mutate(allData,newSeatsBin=cut2(newSeats,g=bins,levels.mean = TRUE))
+# allData<-mutate(allData,newSeatsBin=cut2(newSeats,g=bins,levels.mean = TRUE))
 
 
 
@@ -159,20 +167,20 @@ allData<-mutate(allData,newSeatsBin=cut2(newSeats,g=bins,levels.mean = TRUE))
 bvc_df<-allData
 levels(bvc_df$seatsBin)<-bins:1
 levels(bvc_df$incomeBin)<-bins:1
-levels(bvc_df$newSeatsBin)<-bins:1
+# levels(bvc_df$newSeatsBin)<-bins:1
 
-JustNew <- TRUE
+JustNew <- FALSE
 # plot just new seats
-if (JustNew) {
-  bvc_df<-transmute(bvc_df,region=zip,value=paste(newSeatsBin,'-',incomeBin,sep=''))
-  title1<-"NYC Per Capita Income vs. New Pre-K Seats in 2014-2015"
+#if (JustNew) {
+#  bvc_df<-transmute(bvc_df,region=zip,value=paste(newSeatsBin,'-',incomeBin,sep=''))
+#  title1<-"NYC Per Capita Income vs. New Pre-K Seats in 2014-2015"
   
-} else {
+#} else {
   #plot all seats
   bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
   title1<-"NYC Per Capita Income in 2011 vs. Pre-K Seats Per Child 3-5 in 2015"
   
-}
+#}
 
 #create choropleth object
 bvc<-ZipChoropleth$new(bvc_df)

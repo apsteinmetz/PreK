@@ -7,7 +7,9 @@ library(tm)
 library(Hmisc)
 library(reshape2)
 
-
+#library(devtools)
+#install_github('arilamstein/choroplethrZip@v1.4.0')
+#install_github("arilamstein/choroplethrCaCensusTract@v1.1.0")
 #zip_choropleth_acs(tableId="B09001", zip_zoom=nyc_zips)
 
 
