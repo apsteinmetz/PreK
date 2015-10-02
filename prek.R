@@ -3,12 +3,13 @@ library(choroplethrZip)
 library(acs)
 library(stringr)
 library(dplyr)
-library(tm)
 library(Hmisc)
 library(reshape2)
 library(ggplot2)
 library(cowplot)
+
 #census api key
+#see acs package documentation
 #api.key.install("your key here")
 
 ############################################################################################
@@ -42,16 +43,12 @@ pop<-cbind(geography(totalPop),estimate(totalPop))
 names(pop)<-c("NAME","zip","totPop")
 pop<-pop%>%select(zip,totPop)%>%distinct()%>%filter(totPop!=0)
 
-#where are zips with the most rugrats
-
-
+#where are zips with the most rugrats?
 kidsChor <- pop%>%inner_join(kids)%>%transmute(region=zip,value=kidsUnder3/totPop)
 zip_choropleth(kidsChor,zip_zoom = nyc_zips,title = "Number of Pre-K Seats")
 
 # if you want an underlying map and are using version 1.4 of zip_choropleth
 #zip_choropleth(kidsChor,zip_zoom = nyc_zips,title = "Number of Pre-K Seats",reference_map = TRUE)
-
-
 ######################################################################################
 # scan seat directory pdfs and put into a data frame by zip code
 #DOE pre-k directories
@@ -66,18 +63,18 @@ exe <- paste(exePath,"pdftotext.exe",sep="")
 
 #regex to parse address line
 pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
-txt<- NULL
+
+# each of the PDF directories have 27 pages of intro material. Skip it. This might change for different years. Check PDFs
 firstPage = 28
 
 dests <- tempfile(str_match(urls,"Directory(\\w.+).pdf")[,2],fileext = ".pdf")
+txt<- NULL
 for (i in 1:length(urls)) {
   download.file(urls[i],destfile = dests[i],mode = "wb")
   # pdftotxt.exe is in current directory and convert pdf to text using "table" style at firstpage
   result<-system(paste(exe, "-table -f", firstPage, dests[i], sep = " "), intern=T)
   # get txt-file name and open it  
   filetxt <- sub(".pdf", ".txt", dests[i])
-  #shell.exec(filetxt)
-  
   txt <- append(txt,readLines(filetxt)) # don't mind warning..
 }
 
@@ -90,48 +87,25 @@ names(seats)<-c("zip","seats","daylength")
 seats$seats<-as.integer(seats$seats)
 
 
-
+#how do the programs break out in terms of day length?
 sumDayLength<-seats%>%group_by(daylength)%>%summarise(NumSchools=n(),NumSeats=sum(seats,na.rm=TRUE))
 print(sumDayLength)
 
-
+# aggregate seat count by zip code
 sumSeats<-seats%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm=TRUE))
+
+# some preliminary pictures
 sumSeatsChor<-sumSeats
 names(sumSeatsChor)<-c("region","value","numSeats")
 zip_choropleth(sumSeatsChor,zip_zoom = nyc_zips,title = "Number of Schools")
 names(sumSeatsChor)<-c("region","Schools","value")
 zip_choropleth(sumSeatsChor,zip_zoom = nyc_zips,title = "Number of Pre-K Seats")
 
-###########################################################################################
-# how about new seats?
-#http://schools.nyc.gov/NR/rdonlyres/0A11B651-FEDC-4317-9DEC-57ED5024EB77/0/PreKExpansionGuideFINALfullwebversion.pdf
-# link may not work for long so a pre-loaded file is included in github
-
-pke<-read.csv("pre_k_expansion.csv",header = FALSE)
-tokens<-"(\\d+) (\\d{2}[A-Z]\\d{3}) (.+) (\\d{5}) (\\d+) ([a-zA-Z -]+) - - (\\d+) (\\d+)"
-
-pke1<-apply(X=pke,MARGIN=1,FUN=str_match,tokens)
-pke2<-as.data.frame(t(pke1))[,c(-1,-2,-9)]
-header<-c("District","Address","zip","Add","Note","Total")
-names(pke2)<-header
-pke2$Add<-as.numeric(levels(pke2$Add)[pke2$Add])
-pke2$Total<-as.numeric(levels(pke2$Total)[pke2$Total])
-byzip<-group_by(pke2,zip)
-aggNew<-summarise(byzip,newSeats=sum(Total,na.rm=TRUE))
-names(aggNew)<-c("region","value")
-zip_choropleth(aggNew,
-               county_zoom=nyc_fips,
-               title="2014 New York City Pre-K Seats added",
-               legend="New Seats")
-#restore column names
-names(aggNew)<-c("zip","newSeats")
-
-
 ################################################################################################
-#combine the variables
+#combine the vectors for seats, income and population
 # data frame including new seats not working yet
 #allData<-sumSeats%>%join(pop)%>%join(kids)%>%join(inc)%>%join(aggNew)
-allData<-sumSeats%>%join(pop)%>%join(kids)%>%join(inc)
+allData<-sumSeats%>%join(pop)%>%join(kids)%>%join(inc)%>%na.omit()
 #get rid of airports
 allData<-filter(allData,zip!=11371 & zip!=11430)
 
@@ -146,9 +120,6 @@ allData<-mutate(allData,incomeQuantile=fn(allData$perCapitaIncome))
 #compute seatsPer100Kids quantiles
 fn<-ecdf(allData$seatsPer100Kids)
 allData<-mutate(allData,seatsQuantile=fn(allData$seatsPer100Kids))
-#compute new seats quantiles
-#fn<-ecdf(allData$newSeats)
-#allData<-mutate(allData,newSeatsQuantile=fn(allData$newSeats))
 
 #is there an obvious relationship between income and seats?
 plot(allData$seatsPer100Kids,allData$perCapitaIncome)
@@ -158,29 +129,14 @@ plot(allData$seatsPer100Kids,allData$perCapitaIncome)
 bins<-3
 allData<-mutate(allData,seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE))
 allData<-mutate(allData,incomeBin=cut2(perCapitaIncome,g=bins,levels.mean = TRUE))
-# allData<-mutate(allData,newSeatsBin=cut2(newSeats,g=bins,levels.mean = TRUE))
-
-
 
 # create a data frame exclusively for use in a chorpleth object
 # contains only zips as "region" and income/seats crosstab as "value"
 bvc_df<-allData
 levels(bvc_df$seatsBin)<-bins:1
 levels(bvc_df$incomeBin)<-bins:1
-# levels(bvc_df$newSeatsBin)<-bins:1
-
-JustNew <- FALSE
-# plot just new seats
-#if (JustNew) {
-#  bvc_df<-transmute(bvc_df,region=zip,value=paste(newSeatsBin,'-',incomeBin,sep=''))
-#  title1<-"NYC Per Capita Income vs. New Pre-K Seats in 2014-2015"
-  
-#} else {
-  #plot all seats
-  bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
-  title1<-"NYC Per Capita Income in 2011 vs. Pre-K Seats Per Child 3-5 in 2015"
-  
-#}
+bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
+title1<-"NYC Per Capita Income in 2011 vs. Pre-K Seats Per Child 3-5 in 2015"
 
 #create choropleth object
 bvc<-ZipChoropleth$new(bvc_df)
@@ -205,20 +161,21 @@ legendGoal=melt(matrix(1:9,nrow=3))
 lg<-ggplot(legendGoal, aes(Var2,Var1,fill = as.factor(value)))+ geom_tile()
 lg<- lg + scale_fill_manual(name="",values=bvColors)
 lg<-lg+theme(legend.position="none")
-lg<-lg + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab("More Income -->")
-lg<-lg + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("More Seats -->")
+lg<-lg + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab(" More Income -->")
+lg<-lg + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("  More Seats -->")
 lg<-lg+theme(axis.text=element_blank())
 lg<-lg+theme(line=element_blank())
 #put both plots on a grid
-ggdraw()+ draw_plot(lg,0.1,0.7,width=0.2,height=0.2) + draw_plot(gg)
+ggdraw()+ draw_plot(lg,0.1,0.65,width=0.2,height=0.2) + draw_plot(gg)
 
-
+#########################################################################################
 #crosstab of number of zip codes in income and seat Bins
 xtab<-table(allData$seatsBin,allData$incomeBin)
 hm<-as.data.frame(xtab)
 names(hm)<-c("SeatsPer100Kids","IncomePerCapita","Freq")
 
-xtab
+#display cross-tab
+print(xtab)
 #show heatmap of crosstab
 ggplot(hm, aes(SeatsPer100Kids, IncomePerCapita)) + geom_tile(aes(fill = Freq),colour = "white") +
        scale_fill_gradient(low = "white", high = "steelblue")
