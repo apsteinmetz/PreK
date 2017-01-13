@@ -1,5 +1,5 @@
 library(choroplethr)
-devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
+#devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
 library(choroplethrZip)
 library(acs)
 library(stringr)
@@ -7,7 +7,7 @@ library(dplyr)
 library(Hmisc)
 library(reshape2)
 library(ggplot2)
-devtools::install_github("wilkelab/cowplot")
+#devtools::install_github("wilkelab/cowplot")
 library(cowplot)
 
 #census api key

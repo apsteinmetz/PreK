@@ -1,0 +1,130 @@
+---
+title: 'Exploring NYC Pre-K seats vs. Neighborhood Income'
+author: 'Art Steinmetzz'
+date: '13 January 2017'
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    fig_width: 7
+    fig_height: 4.5
+    theme: readable
+    highlight: tango
+---
+
+# Introduction
+
+A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots.
+
+This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with web scraping, document parsing and making cool bi-variate choropleth maps!  I had to invent a novel method to get good looking bivariate legend onto the chart.
+
+In my original version I use an outside program, PDFTOTEXT.EXE, to get parseable text out of the PDF documents at the NYC.gov web site.  I share the code for this here but skip the step in the notebook since Kaggle can't handle the outside program (as far as this noob knows).  Instead, I provide the raw converted text files to illustrate the parsing.
+
+A further complication is to directly grab the income and population data from the census bureau requires an API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.  I comment out the relevant lines but instead provide the raw downloaded data sets to illustrate how they get manipulated.
+
+
+
+
+
+# Load Libraries
+
+```{r,message=FALSE}
+library(acepack)
+library(Hmisc)
+library(latticeExtra)
+library(gridExtra)
+library(htmlTable)
+library(choroplethr)
+#not on CRAN. Do an install the first time
+#devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
+library(choroplethrZip)
+library(acs)
+library(stringr)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+#not on CRAN. Do an install the first time
+#devtools::install_github("wilkelab/cowplot")
+library(cowplot)
+
+```
+
+# Load Data
+
+First, we go to the American Community Survey from the US census. The 'acs' package lets us directly grab that data.  It's not exactly easy because the breadth of the data is huge and it took a lot of trial and error to get just the desired data.  To make it work we need to browse around the ACS to find out the NYC FIPS codes that will map to NYC zip codes and find the table numbers that hold the income and population data.  Start your browsing here: https://factfinder.census.gov/faces/nav/jsf/pages/searchresults.xhtml?refresh=t
+
+## Use the acs package to construct the queries for census api
+
+```{r,message=FALSE}
+# -----------------------------------------------------------------------
+# get census data on children and income
+#census api key
+#see acs package documentation
+#api.key.install('your key here')
+
+# NYC county codes
+nyc_fips = c(36085,36005, 36047, 36061, 36081)
+#get the zips for all nyc counties
+data("zip.regions")
+nyc_zips<-data.frame(county.fips.numeric=nyc_fips)%>%inner_join(zip.regions)%>%select(region)%>%t
+# make an ACS geo set
+nycgeo<- acs::geo.make(zip.code = nyc_zips)
+```
+##Connect to census.gov.  Requires API key  You can uncomment the lines below
+if you have a key. Otherwise skip to the next section to load the raw csv files
+```{r,message=FALSE}
+
+# income<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B19301")
+# #get relevant data into a data frame format
+# inc<-cbind(acs::geography(income),acs::estimate(income))
+# kidsUnder3<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
+# kids<-cbind(acs::geography(kidsUnder3),acs::estimate(kidsUnder3))
+# totalPop<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B01003")
+# pop<-cbind(geography(totalPop),estimate(totalPop))
+
+```
+
+##Load from csv files the data we would have otherwise gotten from census.gov
+```{r}
+
+
+#if we can't connect to census.gov
+inc<-read.csv('NYCincome.csv')
+kids<-read.csv('NYCkids.csv')
+pop<-read.csv('NYCpopulation.csv')
+
+```
+
+##Massage the census data
+```{r}
+
+
+names(inc)<-c("NAME","zip","perCapitaIncome")
+#needs some cleanup of dupes. I don't know why
+inc<-distinct(select(inc,zip,perCapitaIncome))
+
+#kids under 3 in 2011 should approximate Pre-K kids in 2015
+names(kids)<-c("NAME","zip","kidsUnder3")
+kids<-distinct(select(kids,zip,kidsUnder3))
+kids<-kids%>%select(zip,kidsUnder3)%>%distinct()%>%filter(kidsUnder3!=0 | kidsUnder3!=NA)
+
+names(pop)<-c("NAME","zip","totPop")
+pop<-pop%>%select(zip,totPop)%>%distinct()%>%filter(totPop!=0)
+
+census<-pop%>%inner_join(kids)%>%inner_join(inc)%>%mutate(zip=as.character(zip))
+```
+
+So now we have some census data.  We can use the 'chorplethr' package to
+easily create some meaningful maps.
+
+```{r,message=FALSE}
+
+#where are zips with the most rugrats?
+kidsChor <- census%>%transmute(region=zip,value=kidsUnder3/totPop*100)
+zip_choropleth(kidsChor,zip_zoom = nyc_zips,title = "Percentage of Kids Under 3 in 2011")
+incomeChor <- census%>%transmute(region=zip,value=perCapitaIncome)
+zip_choropleth(incomeChor,zip_zoom = nyc_zips,title = "Per Capita Income 2011")
+
+```
+
+
