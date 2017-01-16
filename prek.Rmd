@@ -114,8 +114,9 @@ pop<-pop%>%select(zip,totPop)%>%distinct()%>%filter(totPop!=0)
 census<-pop%>%inner_join(kids)%>%inner_join(inc)%>%mutate(zip=as.character(zip))
 ```
 
+## Look at some preliminary pictures
 So now we have some census data.  We can use the 'chorplethr' package to
-easily create some meaningful maps.
+easily create some meaningful maps.  Lets look at where the kids are and what incomes are in NYC Zip Codes. 
 
 ```{r,message=FALSE}
 
@@ -126,5 +127,86 @@ incomeChor <- census%>%transmute(region=zip,value=perCapitaIncome)
 zip_choropleth(incomeChor,zip_zoom = nyc_zips,title = "Per Capita Income 2011")
 
 ```
+# Get the Pre-K data
 
+As we did before we have two procedures, one that illustrates downloading the
+PDF pre-K brochures from NYC.gov and converting them to text, which I comment out.  The second loads the converted text in case the PDF's cease to be available.
+
+We then parse it to find the Zip codes of the schools, the number of seats and whether they are full-day or half-day.
+
+## Download PDFs from NYC.gov
+
+Convert to text using an outside program, PDFTOTEXT.EXE (http://www.foolabs.com/xpdf/home.html).
+
+```{r}
+# # -----------------------------------------------------------------------
+# # get NYC data on pre-K programs
+# # scan seat directory pdfs and put into a data frame by zip code
+# #DOE pre-k directories
+# urls<- c("http://schools.nyc.gov/NR/rdonlyres/1F829192-ABE8-4BE6-93B5-1A33A6CCC32E/0/2015PreKDirectoryManhattan.pdf",
+#          "http://schools.nyc.gov/NR/rdonlyres/5337838E-EBE8-479A-8AB5-616C135A4B3C/0/2015PreKDirectoryBronx.pdf",
+#          "http://schools.nyc.gov/NR/rdonlyres/F2D95BF9-553A-4B92-BEAA-785A2D6C0798/0/2015PreKDirectoryBrooklyn.pdf",
+#          "http://schools.nyc.gov/NR/rdonlyres/B9B2080A-0121-4C73-AF4A-45CBC3E28CA3/0/2015PreKDirectoryQueens.pdf",
+#          "http://schools.nyc.gov/NR/rdonlyres/4DE31FBF-DA0D-4628-B709-F9A7421F7152/0/2015PreKDirectoryStatenIsland.pdf")
+# 
+# #assumes pdftotext.exe is in the current directory.  Edit as necessary
+# exe <- "pdftotext.exe"
+# 
+# #regex to parse address line
+# pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
+# 
+# # each of the PDF directories have 27 pages of intro material. Skip it. This might change for different years. Check PDFs
+# firstPage = 28
+# 
+# dests <- tempfile(str_match(urls,"Directory(\\w.+).pdf")[,2],fileext = ".pdf")
+# txt<- NULL
+# for (i in 1:length(urls)) {
+#   download.file(urls[i],destfile = dests[i],mode = "wb")
+#   # pdftotxt.exe is in current directory and convert pdf to text using "table" style at firstpage
+#   result<-system(paste(exe, "-table -f", firstPage, dests[i], sep = " "), intern=T)
+#   # get txt-file name and open it  
+#   filetxt <- sub(".pdf", ".txt", dests[i])
+#   txt <- append(txt,readLines(filetxt,warn=FALSE))
+# }
+
+```
+## Alternatively, import and combine the already converted text files.
+
+```{r}
+boroughList <- c('Manhattan','Bronx','Brooklyn','Queens','Staten')
+txt<-NULL
+for (borough in  boroughList){
+  # get txt-file name and open it  
+  filetxt <- paste(borough, ".txt", sep='')
+  txt <- append(txt,readLines(filetxt,warn = FALSE))
+}
+
+```
+## Extract relevant info from text files
+
+Pull out the Zip, seat count and day length of each school.  Note the pretty heroic (for me, anyway) regex, pkseattokens.
+
+```{r}
+# find address line which contains zip and seat count
+txt2<-txt[grep("Address:",txt)]
+# strip chars that will mess up regex
+pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+)([0-9]{1,4}) (FD|HD|AM|PM|5H)"
+txt2<-sub("'","",txt2)
+seats<-as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
+names(seats)<-c("zip","seats","daylength")
+seats$seats<-as.integer(seats$seats)
+# aggregate seat count by zip code
+sumSeats<-seats%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm=TRUE))
+names(sumSeats)<-c("zip","schools","numSeats")
+
+```
+## Look at Day lengths
+We won't use this data further in our analysis, but lets look at how
+many seats are full day vs. something else.  Full day is the overwhelming majority.
+```{r}
+#how do the programs break out in terms of day length?
+sumDayLength<-seats%>%group_by(daylength)%>%summarise(NumSchools=n(),NumSeats=sum(seats,na.rm=TRUE))
+print(sumDayLength)
+
+```
 
