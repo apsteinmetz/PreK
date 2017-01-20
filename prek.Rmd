@@ -16,15 +16,13 @@ output:
 
 A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots.
 
-This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with web scraping, document parsing and making cool bi-variate choropleth maps!  I had to invent a novel method to get good looking bivariate legend onto the chart.
+This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with web scraping, document parsing and making cool bi-variate choropleth maps! I had to invent a novel method in R to get good looking bivariate legend onto the chart.
+
+Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).
 
 In my original version I use an outside program, PDFTOTEXT.EXE, to get parseable text out of the PDF documents at the NYC.gov web site.  I share the code for this here but skip the step in the notebook since Kaggle can't handle the outside program (as far as this noob knows).  Instead, I provide the raw converted text files to illustrate the parsing.
 
 A further complication is to directly grab the income and population data from the census bureau requires an API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.  I comment out the relevant lines but instead provide the raw downloaded data sets to illustrate how they get manipulated.
-
-
-
-
 
 # Load Libraries
 
@@ -73,11 +71,11 @@ nycgeo<- acs::geo.make(zip.code = nyc_zips)
 ##Connect to census.gov
 Requires an API key.  You can uncomment the lines below
 if you have a key. Otherwise skip to the next section to load the raw csv files which were prepared for this notebook.
-```{r,message=FALSE}
-
-# income<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B19301")
+```{r,message=FALSE, message=FALSE, warning=FALSE}
+# Household Household income is table 190013, per capita income is 19301
+#income<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B19013")
 # #get relevant data into a data frame format
-# inc<-cbind(acs::geography(income),acs::estimate(income))
+#inc<-cbind(acs::geography(income),acs::estimate(income))
 # kidsUnder3<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
 # kids<-cbind(acs::geography(kidsUnder3),acs::estimate(kidsUnder3))
 # totalPop<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B01003")
@@ -85,22 +83,21 @@ if you have a key. Otherwise skip to the next section to load the raw csv files 
 
 ```
 
-##Alternatively, load from csv files the data we would have otherwise gotten from census.gov
+##Alternatively, load from csv files
+...the data we would have otherwise gotten from census.gov.
+Comment this chunk out if you fetch the census data directly.
 ```{r}
-
-
 #if we can't connect to census.gov
 inc<-read.csv('NYCincome.csv')
 kids<-read.csv('NYCkids.csv')
 pop<-read.csv('NYCpopulation.csv')
 
 ```
-
 ##Massage the census data
-```{r}
-names(inc)<-c("NAME","zip","perCapitaIncome")
+```{r, message=FALSE}
+names(inc)<-c("NAME","zip","HouseholdIncome")
 #needs some cleanup of dupes. I don't know why
-inc<-distinct(select(inc,zip,perCapitaIncome))
+inc<-distinct(select(inc,zip,HouseholdIncome))
 
 #kids under 3 in 2011 should approximate Pre-K kids in 2015
 names(kids)<-c("NAME","zip","kidsUnder3")
@@ -113,7 +110,7 @@ pop<-pop%>%select(zip,totPop)%>%distinct()%>%filter(totPop!=0)
 census<-pop%>%inner_join(kids)%>%inner_join(inc)%>%mutate(zip=as.character(zip))
 ```
 
-## Look at some preliminary pictures
+## Look at some preliminary pictures from the census
 So now we have some census data.  We can use the 'chorplethr' package to
 easily create some meaningful maps.  Let's look at where the kids are and what incomes are in NYC Zip codes. Note that the 'choroplethr' package requires the inputs to be in a data frame where the geographic identifier is labeled "region" and the data to be displayed is labeled "value."
 
@@ -122,8 +119,8 @@ easily create some meaningful maps.  Let's look at where the kids are and what i
 #where are zips with the most rugrats?
 kidsChor <- census%>%transmute(region=zip,value=kidsUnder3/totPop*100)
 zip_choropleth(kidsChor,zip_zoom = nyc_zips,title = "Percentage of Kids Under 3 in 2011")
-incomeChor <- census%>%transmute(region=zip,value=perCapitaIncome)
-zip_choropleth(incomeChor,zip_zoom = nyc_zips,title = "Per Capita Income 2011")
+incomeChor <- census%>%transmute(region=zip,value=HouseholdIncome)
+zip_choropleth(incomeChor,zip_zoom = nyc_zips,title = "Household Income 2011")
 
 ```
 
@@ -195,23 +192,34 @@ schools<-as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
 names(schools)<-c("zip","seats","dayLength")
 #have to convert from factor to character THEN to integer.  Don't know why
 schools$seats<-as.integer(as.character(schools$seats))
+
 # aggregate seat count by zip code
 sumSeats<-schools%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm=TRUE))
 names(sumSeats)<-c("zip","schools","numSeats")
 
 ```
-## Look at day lengths
-We won't use this data further in our analysis, but lets look at how
+## Look at some preliminary pictures from the pre-K data
+
+Not all the programs are full day.  Are there a lot of schools offering shorter programs? We won't use this data further in our analysis, but lets look at how
 many seats are full day vs. something else.  Full day is the overwhelming majority.
-```{r}
+```{r, message=FALSE, warning=FALSE}
 #how do the programs break out in terms of day length?
 sumDayLength<-schools%>%group_by(dayLength)%>%summarise(NumSchools=n(),NumSeats=sum(seats,na.rm=TRUE))
 ggplot(sumDayLength,aes(x=dayLength,y=NumSeats))+geom_col()
 ```
 
+Where are the most schools?  Where are the most seats?  We might assume this pictures look the same, and they do.
+```{r, message=FALSE, warning=FALSE}
+# some preliminary pictures
+sumSeats%>%transmute(region=zip,value=schools)%>%zip_choropleth(zip_zoom = nyc_zips,title = "Number of Schools")
+sumSeats%>%transmute(region=zip,value=numSeats)%>%zip_choropleth(zip_zoom = nyc_zips,title = "Number of Pre-K Seats")
+
+```
+
+
 # Combine the data from both the federal census and the city
 
-Combine the data and do some per capita and normalization calculations.  To set the stage for the bi-variate plot we need to split the data into bins.  A 3x3 matrix of income cohorts and pre-K seat quantiles is about all we can handle without over-complicating the visual.
+Combine the data and do some per capita and normalization calculations.
 
 ```{r, message=FALSE}
 # -----------------------------------------------------------------------
@@ -223,31 +231,41 @@ allData<-filter(allData,zip!=11371 & zip!=11430)
 # add normalized seats per capita/kid
 allData<-mutate(allData,seatsPer100Kids = numSeats/ kidsUnder3*100,seatsPerCapita=numSeats/totPop)
 
-#normalize income cohorts
+```
+# Now let's do the cool stuff!
+
+First, is there an obvious relationship between household income and seats?
+```{r}
+print(ggplot(allData,aes(y=seatsPer100Kids,x=HouseholdIncome))+geom_point())
+
+```
+
+Well, that isn't a very clear visual because of the outliers on income.  Let's normalize the the seats and income data and look again.
+
+```{r}
+#lets look at the same data normalized by quantile
 #compute income quantiles
-fn<-ecdf(allData$perCapitaIncome)
-allData<-mutate(allData,incomeQuantile=fn(allData$perCapitaIncome))
+fn<-ecdf(allData$HouseholdIncome)
+allData<-mutate(allData,incomeQuantile=fn(allData$HouseholdIncome))
 #compute seatsPer100Kids quantiles
 fn<-ecdf(allData$seatsPer100Kids)
 allData<-mutate(allData,seatsQuantile=fn(allData$seatsPer100Kids))
+
+#no obvious relationship
+print(ggplot(allData,aes(y=seatsQuantile,x=incomeQuantile))+geom_point())
+```
+
+
+It's pretty clear that there is not a bias toward wealthy neighborhoods getting more pre-K seats.  Further, it looks like a cluster of the wealthiest neighborhoods have very few seats.
+
+# Finally, let's create the map that pulls everything together!
+
+To set the stage for the bi-variate plot we need to split the data into bins.  A 3x3 matrix of income cohorts and pre-K seat quantiles is about all we can handle without over-complicating the visual.
+```{r, warning=FALSE}
 # set bins for bi-variate plot
 bins<-3
 allData<-mutate(allData,seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE))
-allData<-mutate(allData,incomeBin=cut2(perCapitaIncome,g=bins,levels.mean = TRUE))
-
-```
-# Now let's do the cool stuff!
-```{r}
-# some preliminary pictures
-allData%>%transmute(region=zip,value=schools)%>%zip_choropleth(zip_zoom = nyc_zips,title = "Number of Schools")
-allData%>%transmute(region=zip,value=numSeats)%>%zip_choropleth(zip_zoom = nyc_zips,title = "Number of Pre-K Seats")
-
-#is there an obvious relationship between income and seats?
-ggplot(allData,aes(y=seatsPer100Kids,x=perCapitaIncome))+geom_point()
-#lets look at the same data normalized by quantile
-#no obvious relationship
-ggplot(allData,aes(y=seatsQuantile,x=incomeQuantile))+geom_point()
-
+allData<-mutate(allData,incomeBin=cut2(HouseholdIncome,g=bins,levels.mean = TRUE))
 
 # create a data frame exclusively for use in a chorpleth object
 # contains only zips as "region" and income/seats crosstab as "value"
@@ -255,7 +273,7 @@ bvc_df<-allData
 levels(bvc_df$seatsBin)<-bins:1
 levels(bvc_df$incomeBin)<-bins:1
 bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
-title1<-"NYC Per Capita Income in 2011 vs. Pre-K Seats Per Child 3-5 in 2015"
+title1<-"NYC Household Income in 2011 vs. Pre-K Seats Per Child 3-5 in 2015"
 
 #create choropleth object
 bvc<-ZipChoropleth$new(bvc_df)
@@ -267,6 +285,12 @@ bvc$ggplot_scale = scale_fill_manual(name="", values=bvColors, drop=FALSE)
 bvc$set_zoom_zip(county_zoom=nyc_fips,state_zoom = NULL,msa_zoom = NULL,zip_zoom = NULL)
 # further annotate plot in the ggplot2 environment
 gg<-bvc$render() + theme(legend.position="none")
+```
+Here is where the interesting hack comes in.  ggplot doesn't really have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R?  Yes!  The 'cowplot' package allows for creation of a layered plotting canvas where we can overlay multiple plots in arbitary positions and sizes.
+
+To create the legend we 'simply' create a heat map of the 3x3 binds in the map and label the axes appropriately.  Then, using 'cowplot', shove it into a corner of the map.  There are other ways we could use, but they don't look nearly as nice.
+```{r}
+
 
 # create 3x3 legend Use cowplot package for labels
 # deprecated in favor of custom rolled legend below
@@ -275,33 +299,36 @@ gg<-bvc$render() + theme(legend.position="none")
 #gg<-ggdraw(gg) + draw_text(text = "More Income -->",x=0.91,y=0.58)
 #gg<-ggdraw(gg) + draw_text(text = "More Seats -->",x=0.84,y=0.49,angle=270)
 
-#use cowplot to create a plot that will be the legend itself
+#use the 'cowplot' package to create a plot that will be the legend itself
 #first create a legend plot
 legendGoal=melt(matrix(1:9,nrow=3))
 lg<-ggplot(legendGoal, aes(Var2,Var1,fill = as.factor(value)))+ geom_tile()
 lg<- lg + scale_fill_manual(name="",values=bvColors)
 lg<-lg+theme(legend.position="none")
 lg<-lg + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab(" More Income -->")
-lg<-lg + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("  More Seats -->")
+lg<-lg + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("   More Seats -->")
 lg<-lg+theme(axis.text=element_blank())
 lg<-lg+theme(line=element_blank())
 #put both plots on a grid
-ggdraw()+ draw_plot(lg,0.1,0.65,width=0.2,height=0.2) + draw_plot(gg)
+ggdraw()+ draw_plot(lg,0.2,0.5,width=0.2,height=0.35) + draw_plot(gg)
+```
 
-#########################################################################################
+This map shows clearly where the low income, well served areas of the city are.
+
+Finally, we can do a simple cross-tab heatmap to aggregate the map data.  It shows clearly that there is a high occurance of wealthy zip codes with a dearth of seats and a similarly high occurance of low income zip codes with a comparitively large number of seats.  The mayor's fans can confidently assert that NYC's pre-K program is serving the poorest neighborhoods of the city the best.
+```{r}
 #crosstab of number of zip codes in income and seat Bins
 xtab<-table(allData$seatsBin,allData$incomeBin)
 hm<-as.data.frame(xtab)
-names(hm)<-c("SeatsPer100Kids","IncomePerCapita","Freq")
+names(hm)<-c("SeatsPer100Kids","HouseholdIncome","Freq")
 
-#display cross-tab
-print(xtab)
 #show heatmap of crosstab
 # this suggests that high income zip codes are underserved with pre-K seats
-ggplot(hm, aes(SeatsPer100Kids, IncomePerCapita)) + geom_tile(aes(fill = Freq),colour = "white") +
-       scale_fill_gradient(low = "steelblue", high = "white")
+ggplot(hm, aes(SeatsPer100Kids, HouseholdIncome)) + geom_tile(aes(fill = Freq),colour = "white") +
+       scale_fill_gradient(low = "white", high = "steelblue")
 
 
 ```
+
 
 
