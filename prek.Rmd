@@ -14,9 +14,9 @@ output:
 
 # Introduction
 
-A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots.
+A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots ( http://www.theatlantic.com/education/archive/2015/02/a-tale-of-two-pre-ks/385997/).
 
-This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with web scraping, document parsing and making cool bi-variate choropleth maps! I had to invent a novel method in R to get good looking bivariate legend onto the chart.
+This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with whole workflow of data gathering, document parsing, and data tidying - plus making cool bi-variate choropleth maps! I had to invent a novel method in R to get a good looking bivariate legend onto the chart.
 
 Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).
 
@@ -27,29 +27,26 @@ A further complication is to directly grab the income and population data from t
 # Load Libraries
 
 ```{r,message=FALSE}
-library(acepack)
-library(Hmisc)
-library(latticeExtra)
-library(gridExtra)
-library(htmlTable)
+library(Hmisc) # cut2 for binning
 library(choroplethr)
 #not on CRAN. Do an install the first time
 #devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
 library(choroplethrZip)
-library(acs)
+library(acs)  # retrieve census data
 library(stringr)
 library(dplyr)
 library(reshape2)
-library(ggplot2)
+library(ggplot2) 
 #not on CRAN. Do an install the first time
 #devtools::install_github("wilkelab/cowplot")
 library(cowplot)
+library('jpeg')
 
 ```
 
 # Load income and population data from the federal census 
 
-First, we go to the American Community Survey from the US census. The 'acs' package lets us directly grab that data.  It's not exactly easy because the breadth of the data is huge and it took a lot of trial and error to get just the desired data.  To make it work we need to browse around the ACS to find out the NYC FIPS codes that will map to NYC zip codes and find the table numbers that hold the income and population data.  Start your browsing here: https://factfinder.census.gov/faces/nav/jsf/pages/searchresults.xhtml?refresh=t
+First, we go to the American Community Survey from the US census. The 'acs' package lets us directly grab that data.  It's not exactly easy because the breadth of the data is huge and it took a lot of trial and error to get just the desired data.  To make it work we need to browse around the ACS to find out the NYC FIPS codes that will map to NYC Zip codes and find the table numbers that hold the income and population data.  Start your browsing here: https://factfinder.census.gov/faces/nav/jsf/pages/searchresults.xhtml?refresh=t
 
 ## Use the acs package to construct the queries for census api
 
@@ -132,7 +129,7 @@ We then parse it to find the Zip codes of the schools, the number of seats and w
 
 ## Download PDFs from NYC.gov
 
-Convert to text using an outside program, PDFTOTEXT.EXE (http://www.foolabs.com/xpdf/home.html).
+Download the PDFs then convert to text using an outside program, PDFTOTEXT.EXE (http://www.foolabs.com/xpdf/home.html).
 
 ```{r}
 # # -----------------------------------------------------------------------
@@ -198,6 +195,27 @@ sumSeats<-schools%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm
 names(sumSeats)<-c("zip","schools","numSeats")
 
 ```
+So we go from this:
+```{r}
+myjpg <- readJPEG('prekbooklet.jpg')
+plot(1:2,type='n',xaxt='n',yaxt='n',xlab='',ylab='')
+rasterImage(myjpg,1,1,2.0,1.5)
+```
+
+to this:
+```{r}
+txt[1:3]
+```
+...to this:
+```{r}
+txt2[1:3]
+```
+...to this:
+```{r}
+schools[1:3,]
+```  
+Man, I love when the regex works! Magic!
+
 ## Look at some preliminary pictures from the pre-K data
 
 Not all the programs are full day.  Are there a lot of schools offering shorter programs? We won't use this data further in our analysis, but lets look at how
@@ -283,23 +301,17 @@ bvc$title<-title1
 bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
 bvc$ggplot_scale = scale_fill_manual(name="", values=bvColors, drop=FALSE)
 bvc$set_zoom_zip(county_zoom=nyc_fips,state_zoom = NULL,msa_zoom = NULL,zip_zoom = NULL)
-# further annotate plot in the ggplot2 environment
-gg<-bvc$render() + theme(legend.position="none")
+bvc$render()
 ```
+
+So there's the map.  We can immediately see the problem with the default legend.  The labeling is meaningless.  It's just the index of the bins.  That we can fix fairly easily but worse is the uni-dimensional nature of the legend.
+
 Here is where the interesting hack comes in.  ggplot doesn't really have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R?  Yes!  The 'cowplot' package allows for creation of a layered plotting canvas where we can overlay multiple plots in arbitary positions and sizes.
 
+## Create the custom legend.
 To create the legend we 'simply' create a heat map of the 3x3 binds in the map and label the axes appropriately.  Then, using 'cowplot', shove it into a corner of the map.  There are other ways we could use, but they don't look nearly as nice.
 ```{r}
 
-
-# create 3x3 legend Use cowplot package for labels
-# deprecated in favor of custom rolled legend below
-#gg<-gg+guides(fill = guide_legend(nrow = 3,override.aes = list(colour=NULL)))
-#gg<-gg + theme(legend.text=element_blank())
-#gg<-ggdraw(gg) + draw_text(text = "More Income -->",x=0.91,y=0.58)
-#gg<-ggdraw(gg) + draw_text(text = "More Seats -->",x=0.84,y=0.49,angle=270)
-
-#use the 'cowplot' package to create a plot that will be the legend itself
 #first create a legend plot
 legendGoal=melt(matrix(1:9,nrow=3))
 lg<-ggplot(legendGoal, aes(Var2,Var1,fill = as.factor(value)))+ geom_tile()
@@ -309,13 +321,27 @@ lg<-lg + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab(
 lg<-lg + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("   More Seats -->")
 lg<-lg+theme(axis.text=element_blank())
 lg<-lg+theme(line=element_blank())
-#put both plots on a grid
+lg
+```
+
+Above we see the legend as a custom rolled heat map.  There is no data in it, just a matrix corresponding to the bin indices in the zip code map. We assign colors to match.
+
+## Put both plots on a grid
+Now we have the map in the 'gg' variable and the legend in the 'lg' variable.  'ggdraw()' and 'draw_plot()' are the 'cowplot' functions that let us create the canvas.  We tweak the location and size parameters for rendering the legend element until it looks nice inset with the map.
+```{r, message=FALSE, warning=FALSE}
+# put the legend together with the map
+# further annotate plot in the ggplot2 environment
+#strip out the ugly legend
+gg<-bvc$render()  + theme(legend.position="none")
 ggdraw()+ draw_plot(lg,0.2,0.5,width=0.2,height=0.35) + draw_plot(gg)
 ```
 
 This map shows clearly where the low income, well served areas of the city are.
 
+# Wrap-Up
+
 Finally, we can do a simple cross-tab heatmap to aggregate the map data.  It shows clearly that there is a high occurance of wealthy zip codes with a dearth of seats and a similarly high occurance of low income zip codes with a comparitively large number of seats.  The mayor's fans can confidently assert that NYC's pre-K program is serving the poorest neighborhoods of the city the best.
+
 ```{r}
 #crosstab of number of zip codes in income and seat Bins
 xtab<-table(allData$seatsBin,allData$incomeBin)
@@ -330,5 +356,7 @@ ggplot(hm, aes(SeatsPer100Kids, HouseholdIncome)) + geom_tile(aes(fill = Freq),c
 
 ```
 
+
+Thanks for reading!  All errors are my own and I am not trying to make any political points.  I am just a data science dabbler so critiques of the code, methods and conclusions are all welcome!  -- Art Steinmetz
 
 
