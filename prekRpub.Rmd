@@ -14,7 +14,7 @@ output:
 
 A hallmark of the mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots ( http://www.theatlantic.com/education/archive/2015/02/a-tale-of-two-pre-ks/385997/).
 
-This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with whole workflow of data gathering, document parsing, and data tidying - plus making cool bi-variate choropleth maps! I had to invent a novel method in R to get a good looking bivariate legend onto the chart.
+This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with the whole workflow of data gathering, document parsing, and data tidying - plus making cool bi-variate choropleth maps! I had to invent a novel method in R to get a good looking bivariate legend onto the chart.
 
 Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).  Finally, thanks to the cool kids at RStudio.com who have ramped up the R ecosystem in amazing ways!
 
@@ -111,8 +111,6 @@ zip_choropleth(incomeChor,zip_zoom = nyc_zips,title = "Household Income 2011")
 
 # Load data about location and size of pre-K programs from NYC
 
-We then parse it to find the Zip codes of the schools, the number of seats and whether they are full-day or half-day.
-
 ## Download PDFs from NYC.gov
 
 Download the PDFs then convert to text using an outside program, PDFTOTEXT.EXE (http://www.foolabs.com/xpdf/home.html).
@@ -151,7 +149,7 @@ for (i in 1:length(urls)) {
 ```
 ## Extract relevant info from text files
 
-Pull out the Zip, seat count and day length of each school.  Note the pretty heroic (for me, anyway) regular expression, "pkseattokens.""
+Now that we have converted all the PDFs into text and joined them together we pull out the Zip, seat count and day length of each school.  Note the pretty heroic (for me, anyway) regular expression, "pkseattokens.""
 
 ```{r}
 # find address line which contains zip and seat count
@@ -169,7 +167,7 @@ sumSeats<-schools%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm
 names(sumSeats)<-c("zip","schools","numSeats")
 
 ```
-So we go from this:
+So we go from this image grab of a PDF booklet:
 ```{r}
 # This jpeg is not created within the scope of this notebook.  It's just for show.
 myjpg <- readJPEG('prekbooklet.jpg')
@@ -284,7 +282,7 @@ So there's the map.  We can immediately see the problem with the default legend.
 Here is where the interesting hack comes in.  ggplot doesn't really have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R?  Yes!  The 'cowplot' package allows for creation of a layered plotting canvas where we can overlay multiple plots in arbitary positions and sizes.
 
 ## Create the custom legend.
-To create the legend we 'simply' create a heat map of the 3x3 binds in the map and label the axes appropriately.  Then, using 'cowplot', shove it into a corner of the map.  There are other ways we could use, but they don't look nearly as nice.
+To create the legend we 'simply' create a heat map of the 3x3 bins in the map and label the axes appropriately.  Then, using 'cowplot', shove it into a corner of the map.  There are other ways we could use, but they don't look nearly as nice.
 ```{r}
 
 #first create a legend plot
@@ -315,7 +313,7 @@ This map shows clearly where the low income, well served areas of the city are.
 
 # Wrap-Up
 
-Finally, we can do a simple cross-tab heatmap to aggregate the map data.  It shows clearly that there is a high occurance of wealthy zip codes with a dearth of seats and a similarly high occurance of low income zip codes with a comparitively large number of seats.  The mayor's fans can confidently assert that NYC's pre-K program is serving the poorest neighborhoods of the city the best.
+Finally, we can do a simple cross-tab heatmap to aggregate the map data.  The dark squares show that there is a high occurance of wealthy zip codes with a dearth of seats and a similarly high occurance of low income zip codes with a comparitively large number of seats.  The mayor's fans can confidently assert that NYC's pre-K program is serving the poorest neighborhoods of the city the best.
 
 ```{r}
 #crosstab of number of zip codes in income and seat Bins
@@ -330,8 +328,4 @@ ggplot(hm, aes(SeatsPer100Kids, HouseholdIncome)) + geom_tile(aes(fill = Freq),c
 
 
 ```
-
-
 Thanks for reading!  All errors are my own and I am not trying to make any political points.  I am just a data science dabbler so critiques of the code, methods and conclusions are all welcome!  -- Art Steinmetz
-
-
