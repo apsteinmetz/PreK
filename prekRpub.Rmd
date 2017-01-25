@@ -6,23 +6,22 @@ output:
   html_document:
     number_sections: true
     toc: true
-    fig_width: 7
-    fig_height: 4.5
     theme: readable
     highlight: tango
 ---
 
 # Introduction
 
-A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots ( http://www.theatlantic.com/education/archive/2015/02/a-tale-of-two-pre-ks/385997/).
+A hallmark of the mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots ( http://www.theatlantic.com/education/archive/2015/02/a-tale-of-two-pre-ks/385997/).
 
 This is an exploration comparing income to pre-K seats by neighborhoods. It was done mainly to help me practice with whole workflow of data gathering, document parsing, and data tidying - plus making cool bi-variate choropleth maps! I had to invent a novel method in R to get a good looking bivariate legend onto the chart.
 
-Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).
+Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).  Finally, thanks to the cool kids at RStudio.com who have ramped up the R ecosystem in amazing ways!
 
-In my original version I use an outside program, PDFTOTEXT.EXE, to get parseable text out of the PDF documents at the NYC.gov web site.  I share the code for this here but skip the step in the notebook since Kaggle can't handle the outside program (as far as this noob knows).  Instead, I provide the raw converted text files to illustrate the parsing.
+One complication is to directly grab the income and population data from the census bureau requires an API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.
 
-A further complication is to directly grab the income and population data from the census bureau requires an API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.  I comment out the relevant lines but instead provide the raw downloaded data sets to illustrate how they get manipulated.
+Also note that this code assumes NYC keeps the pre-K directories at the same URLs.
+
 
 # Load Libraries
 
@@ -66,28 +65,17 @@ nyc_zips<-data.frame(county.fips.numeric=nyc_fips)%>%inner_join(zip.regions)%>%s
 nycgeo<- acs::geo.make(zip.code = nyc_zips)
 ```
 ##Connect to census.gov
-Requires an API key.  You can uncomment the lines below
-if you have a key. Otherwise skip to the next section to load the raw csv files which were prepared for this notebook.
+Requires an API key.  Download household median income, population and number of kids under 3 by Zip code
+
 ```{r,message=FALSE, message=FALSE, warning=FALSE}
-# Household Household income is table 190013, per capita income is 19301
-#income<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B19013")
-# #get relevant data into a data frame format
-#inc<-cbind(acs::geography(income),acs::estimate(income))
-# kidsUnder3<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
-# kids<-cbind(acs::geography(kidsUnder3),acs::estimate(kidsUnder3))
-# totalPop<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B01003")
-# pop<-cbind(geography(totalPop),estimate(totalPop))
-
-```
-
-##Alternatively, load from csv files
-...the data we would have otherwise gotten from census.gov.
-Comment this chunk out if you fetch the census data directly.
-```{r}
-#if we can't connect to census.gov
-inc<-read.csv('NYCincome.csv')
-kids<-read.csv('NYCkids.csv')
-pop<-read.csv('NYCpopulation.csv')
+#Household Household income is table 190013, per capita income is 19301
+income<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B19013")
+#get relevant data into a data frame format
+inc<-cbind(acs::geography(income),acs::estimate(income))
+kidsUnder3<-acs::acs.fetch(endyear=2011,geography=nycgeo,table.number="B09001",keyword = "Under 3")
+kids<-cbind(acs::geography(kidsUnder3),acs::estimate(kidsUnder3))
+totalPop<-acs.fetch(endyear=2011,geography=nycgeo,table.number="B01003")
+pop<-cbind(geography(totalPop),estimate(totalPop))
 
 ```
 ##Massage the census data
@@ -123,55 +111,41 @@ zip_choropleth(incomeChor,zip_zoom = nyc_zips,title = "Household Income 2011")
 
 # Load data about location and size of pre-K programs from NYC
 
-As we did before we have two altenative procedures, one that illustrates downloading the PDF pre-K brochures from NYC.gov and converting them to text, which I comment out, and the second loads the converted text from csv files here in case the PDF's cease to be available.  I don't want the notebook to break if NYC changes their web site.
-
 We then parse it to find the Zip codes of the schools, the number of seats and whether they are full-day or half-day.
 
 ## Download PDFs from NYC.gov
 
 Download the PDFs then convert to text using an outside program, PDFTOTEXT.EXE (http://www.foolabs.com/xpdf/home.html).
 
-```{r}
-# # -----------------------------------------------------------------------
-# # get NYC data on pre-K programs
-# # scan seat directory pdfs and put into a data frame by zip code
-# #DOE pre-k directories
-# urls<- c("http://schools.nyc.gov/NR/rdonlyres/1F829192-ABE8-4BE6-93B5-1A33A6CCC32E/0/2015PreKDirectoryManhattan.pdf",
-#          "http://schools.nyc.gov/NR/rdonlyres/5337838E-EBE8-479A-8AB5-616C135A4B3C/0/2015PreKDirectoryBronx.pdf",
-#          "http://schools.nyc.gov/NR/rdonlyres/F2D95BF9-553A-4B92-BEAA-785A2D6C0798/0/2015PreKDirectoryBrooklyn.pdf",
-#          "http://schools.nyc.gov/NR/rdonlyres/B9B2080A-0121-4C73-AF4A-45CBC3E28CA3/0/2015PreKDirectoryQueens.pdf",
-#          "http://schools.nyc.gov/NR/rdonlyres/4DE31FBF-DA0D-4628-B709-F9A7421F7152/0/2015PreKDirectoryStatenIsland.pdf")
-# 
-# #assumes pdftotext.exe is in the current directory.  Edit as necessary
-# exe <- "pdftotext.exe"
-# 
-# #regex to parse address line
-# pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
-# 
-# # each of the PDF directories have 27 pages of intro material. Skip it. This might change for different years. Check PDFs
-# firstPage = 28
-# 
-# dests <- tempfile(str_match(urls,"Directory(\\w.+).pdf")[,2],fileext = ".pdf")
-# txt<- NULL
-# for (i in 1:length(urls)) {
-#   download.file(urls[i],destfile = dests[i],mode = "wb")
-#   # pdftotxt.exe is in current directory and convert pdf to text using "table" style at firstpage
-#   result<-system(paste(exe, "-table -f", firstPage, dests[i], sep = " "), intern=T)
-#   # get txt-file name and open it  
-#   filetxt <- sub(".pdf", ".txt", dests[i])
-#   txt <- append(txt,readLines(filetxt,warn=FALSE))
-# }
+```{r, message=FALSE, warning=FALSE}
+# -----------------------------------------------------------------------
+# get NYC data on pre-K programs
+# scan seat directory pdfs and put into a data frame by zip code
+#DOE pre-k directories
+urls<- c("http://schools.nyc.gov/NR/rdonlyres/1F829192-ABE8-4BE6-93B5-1A33A6CCC32E/0/2015PreKDirectoryManhattan.pdf",
+         "http://schools.nyc.gov/NR/rdonlyres/5337838E-EBE8-479A-8AB5-616C135A4B3C/0/2015PreKDirectoryBronx.pdf",
+         "http://schools.nyc.gov/NR/rdonlyres/F2D95BF9-553A-4B92-BEAA-785A2D6C0798/0/2015PreKDirectoryBrooklyn.pdf",
+         "http://schools.nyc.gov/NR/rdonlyres/B9B2080A-0121-4C73-AF4A-45CBC3E28CA3/0/2015PreKDirectoryQueens.pdf",
+         "http://schools.nyc.gov/NR/rdonlyres/4DE31FBF-DA0D-4628-B709-F9A7421F7152/0/2015PreKDirectoryStatenIsland.pdf")
 
-```
-## Alternatively, import and combine the already converted text files.
+#assumes pdftotext.exe is in the current directory.  Edit as necessary
+exe <- "pdftotext.exe"
 
-```{r}
-boroughList <- c('Manhattan','Bronx','Brooklyn','Queens','Staten')
-txt<-NULL
-for (borough in  boroughList){
-  # get txt-file name and open it  
-  filetxt <- paste(borough, ".txt", sep='')
-  txt <- append(txt,readLines(filetxt,warn = FALSE))
+#regex to parse address line
+pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
+
+# each of the PDF directories have 27 pages of intro material. Skip it. This might change for different years. Check PDFs
+firstPage = 28
+
+dests <- tempfile(str_match(urls,"Directory(\\w.+).pdf")[,2],fileext = ".pdf")
+txt<- NULL
+for (i in 1:length(urls)) {
+  download.file(urls[i],destfile = dests[i],mode = "wb")
+  # pdftotxt.exe is in current directory and convert pdf to text using "table" style at firstpage
+  result<-system(paste(exe, "-table -f", firstPage, dests[i], sep = " "), intern=T)
+  # get txt-file name and open it
+  filetxt <- sub(".pdf", ".txt", dests[i])
+  txt <- append(txt,readLines(filetxt,warn=FALSE))
 }
 
 ```
@@ -197,6 +171,7 @@ names(sumSeats)<-c("zip","schools","numSeats")
 ```
 So we go from this:
 ```{r}
+# This jpeg is not created within the scope of this notebook.  It's just for show.
 myjpg <- readJPEG('prekbooklet.jpg')
 plot(1:2,type='n',xaxt='n',yaxt='n',xlab='',ylab='')
 rasterImage(myjpg,1,1,2.0,1.5)
