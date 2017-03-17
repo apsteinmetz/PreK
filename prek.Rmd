@@ -10,6 +10,7 @@ output:
     fig_height: 4.5
     theme: readable
     highlight: tango
+    keep_md: true
 ---
 
 # Introduction
@@ -196,11 +197,7 @@ names(sumSeats)<-c("zip","schools","numSeats")
 
 ```
 So we go from this:
-```{r}
-myjpg <- readJPEG('prekbooklet.jpg')
-plot(1:2,type='n',xaxt='n',yaxt='n',xlab='',ylab='')
-rasterImage(myjpg,1,1,2.0,1.5)
-```
+<img src="prekbooklet.jpg"/>
 
 to this:
 ```{r}
