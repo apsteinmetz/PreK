@@ -197,7 +197,7 @@ names(sumSeats)<-c("zip","schools","numSeats")
 
 ```
 So we go from this:
-<img src="prekbooklet.jpg"/>
+<img src="img\prekbooklet.jpg"/>
 
 to this:
 ```{r}
