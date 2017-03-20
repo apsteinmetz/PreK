@@ -21,7 +21,7 @@ This is an exploration comparing income to pre-K seats by neighborhoods. It was 
 
 Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).
 
-In my original version I use an outside program, PDFTOTEXT.EXE, to get parseable text out of the PDF documents at the NYC.gov web site.  I share the code for this here but skip the step in the notebook since Kaggle can't handle the outside program (as far as this noob knows).  Instead, I provide the raw converted text files to illustrate the parsing.
+In my original version I use an outside program, PDFTOTEXT.EXE, to get parseable text out of the PDF documents at the NYC.gov web site.  I share the commented out code for this here but skip the step in the notebook to save run time.  Instead, I load the raw converted text files to illustrate the parsing.
 
 A further complication is to directly grab the income and population data from the census bureau requires an API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.  I comment out the relevant lines but instead provide the raw downloaded data sets to illustrate how they get manipulated.
 
