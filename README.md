@@ -194,7 +194,7 @@ sumSeats<-schools%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm
 names(sumSeats)<-c("zip","schools","numSeats")
 ```
 So we go from this:
-<img src="prekbooklet.jpg"/>
+<img src="img\prekbooklet.jpg"/>
 
 to this:
 
