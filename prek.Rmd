@@ -380,21 +380,23 @@ Finally, we can do a simple cross-tab heatmap to aggregate the map data.  It sho
 ```{r}
 #crosstab of number of zip codes in income and seat Bins
 xtab<-table(allData$seatsBin,allData$incomeBin)
-rownames(xtab)<-c("Few","Average","Seats")
-colnames(xtab)<-c("Low","Middle","Income")
+rownames(xtab)<-c("Few","Average","Many")
+colnames(xtab)<-c("Low","Middle","High")
 hm <- as_data_frame(xtab)
 #  mutate_all(as.numeric) %>%
 #  round()
 names(hm)<-c("SeatsPer100Kids","HouseholdIncome","Freq")
 hm <- hm %>% mutate(SeatsPer100Kids=as_factor(SeatsPer100Kids))
 hm <- hm %>% mutate(HouseholdIncome=as_factor(HouseholdIncome))
-
+hm <- hm %>% rename(ZipCount = Freq)
 #show heatmap of crosstab
 # this suggests that high income zip codes are underserved with pre-K seats
 ggplot(hm, aes(SeatsPer100Kids, HouseholdIncome)) + 
-  geom_tile(aes(fill = Freq),colour = "white")  +
-   scale_fill_gradient(low = "white", high = "steelblue",breaks=c(10,15,20,25)) +
-  # scale_y_continuous(labels = scales::dollar) + 
+  geom_tile(aes(fill = ZipCount),colour = "white")  +
+   scale_fill_gradient(low = "lightgrey", 
+                       high = "steelblue",
+                       breaks=c(13,18,23)) +
+    
   NULL
 
 
