@@ -283,7 +283,7 @@ allData %>% ggplot(aes(seatsPer100Kids)) + geom_histogram(binwidth = 5) +
 Is there an obvious relationship between household income and seats?
 ```{r}
 ggplot(allData,aes(y=seatsPer100Kids,x=HouseholdIncome))+geom_point() +
-    scale_x_continuous(labels = scales::comma)
+    scale_x_continuous(labels = scales::dollar)
 
 ```
 
