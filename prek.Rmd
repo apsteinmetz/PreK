@@ -180,7 +180,7 @@ boroughList <- c('Manhattan','Bronx','Brooklyn','Queens','Staten')
 txt<-NULL
 for (borough in  boroughList){
   # get txt-file name and open it  
-  filetxt <- paste(borough, ".txt", sep='')
+  filetxt <- paste("data/",borough, ".txt", sep='')
   txt <- append(txt,readLines(filetxt,warn = FALSE))
 }
 
