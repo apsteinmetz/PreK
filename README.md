@@ -1,6 +1,17 @@
-# Exploring NYC Pre-K seats vs. Neighborhood Income
-Art Steinmetz  
-13 January 2017  
+---
+title: 'Exploring NYC Pre-K seats vs. Neighborhood Income'
+author: 'Art Steinmetz'
+date: '13 January 2017'
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    fig_width: 7
+    fig_height: 4.5
+    theme: readable
+    highlight: tango
+    keep_md: true
+---
 
 # Introduction
 
@@ -19,19 +30,69 @@ A further complication is to directly grab the income and population data from t
 
 ```r
 library(Hmisc) # cut2 for binning
+```
+
+```
+## Warning: package 'Formula' was built under R version 3.4.4
+```
+
+```r
 library(choroplethr)
+```
+
+```
+## Warning: package 'choroplethr' was built under R version 3.4.4
+```
+
+```
+## Warning: package 'acs' was built under R version 3.4.4
+```
+
+```
+## Warning: package 'stringr' was built under R version 3.4.4
+```
+
+```
+## Warning: package 'XML' was built under R version 3.4.4
+```
+
+```r
 #not on CRAN. Do an install the first time
 #devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
 library(choroplethrZip)
 library(acs)  # retrieve census data
+library(tidyverse)
+```
+
+```
+## Warning: package 'tidyr' was built under R version 3.4.4
+```
+
+```
+## Warning: package 'readr' was built under R version 3.4.4
+```
+
+```
+## Warning: package 'purrr' was built under R version 3.4.4
+```
+
+```
+## Warning: package 'dplyr' was built under R version 3.4.4
+```
+
+```r
 library(stringr)
-library(dplyr)
 library(reshape2)
 library(ggplot2) 
-#not on CRAN. Do an install the first time
-#devtools::install_github("wilkelab/cowplot")
 library(cowplot)
-library('jpeg')
+```
+
+```
+## Warning: package 'cowplot' was built under R version 3.4.4
+```
+
+```r
+library(jpeg)
 ```
 
 # Load income and population data from the federal census 
@@ -77,9 +138,9 @@ Comment this chunk out if you fetch the census data directly.
 
 ```r
 #if we can't connect to census.gov
-inc<-read.csv('NYCincome.csv')
-kids<-read.csv('NYCkids.csv')
-pop<-read.csv('NYCpopulation.csv')
+inc<-read_csv('data/NYCincome.csv',col_types = "ccd")
+kids<-read_csv('data/NYCkids.csv',col_types = "ccd")
+pop<-read_csv('data/NYCpopulation.csv',col_types = "ccd")
 ```
 ##Massage the census data
 
@@ -91,8 +152,14 @@ inc<-distinct(select(inc,zip,HouseholdIncome))
 #kids under 3 in 2011 should approximate Pre-K kids in 2015
 names(kids)<-c("NAME","zip","kidsUnder3")
 kids<-distinct(select(kids,zip,kidsUnder3))
-kids<-kids%>%select(zip,kidsUnder3)%>%distinct()%>%filter(kidsUnder3!=0 | kidsUnder3!=NA)
+kids<-kids %>% select(zip,kidsUnder3) %>% distinct() %>% filter(kidsUnder3!=0 | !is.na(kidsUnder3))
+```
 
+```
+## Warning: package 'bindrcpp' was built under R version 3.4.4
+```
+
+```r
 names(pop)<-c("NAME","zip","totPop")
 pop<-pop%>%select(zip,totPop)%>%distinct()%>%filter(totPop!=0)
 
@@ -106,18 +173,34 @@ easily create some meaningful maps.  Let's look at where the kids are and what i
 
 ```r
 #where are zips with the most rugrats?
-kidsChor <- census%>%transmute(region=zip,value=kidsUnder3/totPop*100)
-zip_choropleth(kidsChor,zip_zoom = nyc_zips,title = "Percentage of Kids Under 3 in 2011")
+kidsChor <- census %>% 
+  transmute(region = zip, value = kidsUnder3 / totPop * 100)
+zip_choropleth(kidsChor, 
+               zip_zoom = nyc_zips, 
+               title = "Percentage of Kids Under 3 in 2011")
 ```
 
 ![](prek_files/figure-html/unnamed-chunk-6-1.png)<!-- -->
 
+
 ```r
-incomeChor <- census%>%transmute(region=zip,value=HouseholdIncome)
-zip_choropleth(incomeChor,zip_zoom = nyc_zips,title = "Household Income 2011")
+incomeChor <- census %>% 
+  transmute(region = zip, 
+            value = HouseholdIncome)
+zip_choropleth(incomeChor, 
+               zip_zoom = nyc_zips, 
+               title = "Household Income 2011")
 ```
 
-![](prek_files/figure-html/unnamed-chunk-6-2.png)<!-- -->
+```
+## Warning in self$bind(): The following regions were missing and are being
+## set to NA: 10174, 10119, 11371, 10110, 10271, 10171, 10177, 10152, 10279,
+## 10115, 11430, 10111, 10112, 10167, 11351, 11359, 11424, 11425, 11451,
+## 10169, 10103, 10311, 10153, 10154, 10199, 10165, 10168, 10278, 10020,
+## 10173, 10170, 10172
+```
+
+![](prek_files/figure-html/unnamed-chunk-7-1.png)<!-- -->
 
 # Load data about location and size of pre-K programs from NYC
 
@@ -169,7 +252,7 @@ boroughList <- c('Manhattan','Bronx','Brooklyn','Queens','Staten')
 txt<-NULL
 for (borough in  boroughList){
   # get txt-file name and open it  
-  filetxt <- paste(borough, ".txt", sep='')
+  filetxt <- paste("data/",borough, ".txt", sep='')
   txt <- append(txt,readLines(filetxt,warn = FALSE))
 }
 ```
@@ -184,19 +267,22 @@ txt2<-txt[grep("Address:",txt)]
 # strip chars that will mess up regex
 pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
 txt2<-sub("'","",txt2)
-schools<-as.data.frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
+schools<-as_data_frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
 names(schools)<-c("zip","seats","dayLength")
 #have to convert from factor to character THEN to integer.  Don't know why
 schools$seats<-as.integer(as.character(schools$seats))
 
 # aggregate seat count by zip code
-sumSeats<-schools%>%group_by(zip)%>%summarise(count=n(),numSeats=sum(seats,na.rm=TRUE))
-names(sumSeats)<-c("zip","schools","numSeats")
+sumSeats <- schools %>% 
+  group_by(zip) %>% 
+  summarise(count = n(), 
+            numSeats = sum(seats, na.rm = TRUE))
+  names(sumSeats)<-c("zip","schools","numSeats")
 ```
 So we go from this:
 ![](prek_files/figure-html/prekbooklet.png)<!-- -->
 
-to this:
+then to this:
 
 ```r
 txt[1:3]
@@ -207,7 +293,7 @@ txt[1:3]
 ## [2] ""                                                                                                                                                                                                                   
 ## [3] "    Bank Street Head Start (01MATK)                                                                                                            Other School Features         2015   2014 Lowest"
 ```
-...to this:
+and then to this:
 
 ```r
 txt2[1:3]
@@ -218,17 +304,19 @@ txt2[1:3]
 ## [2] "    Address: 280 Rivington Street, 10002 (Lower East Side)                           Phone:    212-254-3070                                    Breakfast/Lunch/Snack(s)      40 FD  N/A"
 ## [3] "    Address: 180 Suffolk Street, 10002 (Chinatown)                                   Phone:    212-982-6650                                    Breakfast/Lunch/Snack(s)      29 FD  N/A"
 ```
-...to this:
+...and finally to this:
 
 ```r
 schools[1:3,]
 ```
 
 ```
-##     zip seats dayLength
-## 1 10009    40        FD
-## 2 10002    40        FD
-## 3 10002    29        FD
+## # A tibble: 3 x 3
+##   zip   seats dayLength
+##   <chr> <int> <chr>    
+## 1 10009    40 FD       
+## 2 10002    40 FD       
+## 3 10002    29 FD
 ```
 Man, I love when the regex works! Magic!
 
@@ -240,25 +328,44 @@ many seats are full day vs. something else.  Full day is the overwhelming majori
 ```r
 #how do the programs break out in terms of day length?
 sumDayLength<-schools%>%group_by(dayLength)%>%summarise(NumSchools=n(),NumSeats=sum(seats,na.rm=TRUE))
-ggplot(sumDayLength,aes(x=dayLength,y=NumSeats))+geom_col()
+ggplot(sumDayLength,aes(x=dayLength,y=NumSeats)) + geom_col() +
+  scale_y_continuous(labels = scales::comma)
 ```
 
-![](prek_files/figure-html/unnamed-chunk-13-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-14-1.png)<!-- -->
 
 Where are the most schools?  Where are the most seats?  We might assume this pictures look the same, and they do.
 
 ```r
 # some preliminary pictures
-sumSeats%>%transmute(region=zip,value=schools)%>%zip_choropleth(zip_zoom = nyc_zips,title = "Number of Schools")
+sumSeats %>% transmute(region = zip, value = schools) %>%
+  zip_choropleth(zip_zoom = nyc_zips, 
+                 title = "Number of Schools")
 ```
 
-![](prek_files/figure-html/unnamed-chunk-14-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
 ```r
-sumSeats%>%transmute(region=zip,value=numSeats)%>%zip_choropleth(zip_zoom = nyc_zips,title = "Number of Pre-K Seats")
+sumSeats %>% transmute(region=zip,value=numSeats) %>% 
+  zip_choropleth(zip_zoom = nyc_zips,
+                 title = "Number of Pre-K Seats")
 ```
 
-![](prek_files/figure-html/unnamed-chunk-14-2.png)<!-- -->
+```
+## Warning in super$initialize(zip.map, user.df): Your data.frame contains the
+## following regions which are not mappable: 11249, 11376, NA
+```
+
+```
+## Warning in self$bind(): The following regions were missing and are being
+## set to NA: 10464, 11040, 10280, 10174, 10017, 10119, 11371, 10110, 10271,
+## 11003, 11370, 10171, 10069, 10162, 10177, 10152, 10279, 10115, 10005,
+## 10111, 10112, 10167, 11351, 11359, 11424, 11425, 11451, 10006, 10169,
+## 10103, 10311, 10153, 10154, 10199, 10165, 10168, 10278, 10020, 10173,
+## 10170, 10172, 11005
+```
+
+![](prek_files/figure-html/unnamed-chunk-16-1.png)<!-- -->
 
 
 # Combine the data from both the federal census and the city
@@ -269,22 +376,56 @@ Combine the data and do some per capita and normalization calculations.
 ```r
 # -----------------------------------------------------------------------
 #combine the vectors for seats, income and population
-allData<-sumSeats%>%join(pop)%>%join(kids)%>%join(inc)%>%na.omit()
+allData<-sumSeats %>% 
+  left_join(pop) %>% 
+  left_join(kids) %>% 
+  left_join(inc) %>% 
+  na.omit()
 #get rid of airports, JFK and LGA
 allData<-filter(allData,zip!=11371 & zip!=11430)
 
 # add normalized seats per capita/kid
-allData<-mutate(allData,seatsPer100Kids = numSeats/ kidsUnder3*100,seatsPerCapita=numSeats/totPop)
+allData<-allData %>% mutate(seatsPer100Kids = round(numSeats/ kidsUnder3*100,digits=1),
+                            seatsPer1000People=round(numSeats/totPop*1000,digits=1))
+
+allData
+```
+
+```
+## # A tibble: 171 x 8
+##    zip   schools numSeats totPop kidsUnder3 HouseholdIncome seatsPer100Kids
+##    <chr>   <int>    <int>  <dbl>      <dbl>           <dbl>           <dbl>
+##  1 10001       7      167  21097        532           67795            31.4
+##  2 10002      27      982  81335       1761           32407            55.8
+##  3 10003       2       54  55190        937           88601             5.8
+##  4 10004       1       31   2604        154          127448            20.1
+##  5 10007       1       36   5892        311          191900            11.6
+##  6 10009      13      366  62335       1116           55316            32.8
+##  7 10010       2       87  28954        532           94242            16.4
+##  8 10011       4      123  51064       1187           99700            10.4
+##  9 10012       2       56  24342        453           77072            12.4
+## 10 10013       4       74  25942        889           64806             8.3
+## # ... with 161 more rows, and 1 more variable: seatsPer1000People <dbl>
 ```
 # Now let's do the cool stuff!
 
-First, is there an obvious relationship between household income and seats?
+First, what is the targeted level of seats available for every 100 kids?  We don't know but do know that funds are finite and not every parent wants to put their child into pre-K.  It looks like most neighborhoods have roughly 25 seats for every 100 children.
 
 ```r
-print(ggplot(allData,aes(y=seatsPer100Kids,x=HouseholdIncome))+geom_point())
+allData %>% ggplot(aes(seatsPer100Kids)) + geom_histogram(binwidth = 5) +
+  labs(y="Count of Neighborhoods")
 ```
 
-![](prek_files/figure-html/unnamed-chunk-16-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-18-1.png)<!-- -->
+
+Is there an obvious relationship between household income and seats?
+
+```r
+ggplot(allData,aes(y=seatsPer100Kids,x=HouseholdIncome))+geom_point() +
+    scale_x_continuous(labels = scales::dollar)
+```
+
+![](prek_files/figure-html/unnamed-chunk-19-1.png)<!-- -->
 
 Well, that isn't a very clear visual because of the outliers on income.  Let's normalize the the seats and income data and look again.
 
@@ -299,13 +440,13 @@ fn<-ecdf(allData$seatsPer100Kids)
 allData<-mutate(allData,seatsQuantile=fn(allData$seatsPer100Kids))
 
 #no obvious relationship
-print(ggplot(allData,aes(y=seatsQuantile,x=incomeQuantile))+geom_point())
+ggplot(allData,aes(y=seatsQuantile,x=incomeQuantile))+geom_point()
 ```
 
-![](prek_files/figure-html/unnamed-chunk-17-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-20-1.png)<!-- -->
 
 
-It's pretty clear that there is not a bias toward wealthy neighborhoods getting more pre-K seats.  Further, it looks like a cluster of the wealthiest neighborhoods have very few seats.
+It's pretty clear that there is no bias toward wealthy neighborhoods getting more pre-K seats per child.  Further, it looks like a cluster of the wealthiest neighborhoods have very few seats.
 
 # Finally, let's create the map that pulls everything together!
 
@@ -316,6 +457,10 @@ To set the stage for the bi-variate plot we need to split the data into bins.  A
 bins<-3
 allData<-mutate(allData,seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE))
 allData<-mutate(allData,incomeBin=cut2(HouseholdIncome,g=bins,levels.mean = TRUE))
+#recode numeric bins to descriptions
+levels(allData$seatsBin) = c("Few","Average","Many")
+levels(allData$incomeBin) = c("Low","Average","High")
+
 
 # create a data frame exclusively for use in a chorpleth object
 # contains only zips as "region" and income/seats crosstab as "value"
@@ -326,39 +471,44 @@ bvc_df<-transmute(bvc_df,region=zip,value=paste(seatsBin,'-',incomeBin,sep=''))
 title1<-"NYC Household Income in 2011 vs. Pre-K Seats Per Child 3-5 in 2015"
 
 #create choropleth object
-bvc<-ZipChoropleth$new(bvc_df)
-bvc$title<-title1
+bvc <- ZipChoropleth$new(bvc_df)
+bvc$title <-title1
 #use color scheme shown here http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/
 #assumes 9 levels
 bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
 bvc$ggplot_scale = scale_fill_manual(name="", values=bvColors, drop=FALSE)
-bvc$set_zoom_zip(county_zoom=nyc_fips,state_zoom = NULL,msa_zoom = NULL,zip_zoom = NULL)
+bvc$set_zoom_zip(county_zoom=nyc_fips,
+                 state_zoom = NULL,
+                 msa_zoom = NULL,
+                 zip_zoom = NULL)
 bvc$render()
 ```
 
-![](prek_files/figure-html/unnamed-chunk-18-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-21-1.png)<!-- -->
 
 So there's the map.  We can immediately see the problem with the default legend.  The labeling is meaningless.  It's just the index of the bins.  That we can fix fairly easily but worse is the uni-dimensional nature of the legend.
 
 Here is where the interesting hack comes in.  ggplot doesn't really have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R?  Yes!  The 'cowplot' package allows for creation of a layered plotting canvas where we can overlay multiple plots in arbitary positions and sizes.
 
 ## Create the custom legend.
-To create the legend we 'simply' create a heat map of the 3x3 binds in the map and label the axes appropriately.  Then, using 'cowplot', shove it into a corner of the map.  There are other ways we could use, but they don't look nearly as nice.
+To create the legend we 'simply' create a heat map of the 3x3 bins in the map and label the axes appropriately.  Then, using 'cowplot', shove it into a corner of the map.  There are other ways we could use, but they don't look nearly as nice.
 
 ```r
 #first create a legend plot
-legendGoal=melt(matrix(1:9,nrow=3))
-lg<-ggplot(legendGoal, aes(Var2,Var1,fill = as.factor(value)))+ geom_tile()
-lg<- lg + scale_fill_manual(name="",values=bvColors)
-lg<-lg+theme(legend.position="none")
-lg<-lg + theme(axis.title.x=element_text(size=rel(1),color=bvColors[3])) + xlab(" More Income -->")
-lg<-lg + theme(axis.title.y=element_text(size=rel(1),color=bvColors[3])) + ylab("   More Seats -->")
-lg<-lg+theme(axis.text=element_blank())
-lg<-lg+theme(line=element_blank())
+legendGoal = melt(matrix(1:9, nrow = 3))
+lg <- ggplot(legendGoal, aes(Var2, Var1, fill = as.factor(value))) + geom_tile()
+lg <- lg + scale_fill_manual(name = "", values = bvColors)
+lg <- lg + theme(legend.position = "none")
+lg <- lg + theme(axis.title.x = element_text(size = rel(1), color = bvColors[3])) + 
+  xlab(" More Income -->")
+lg <- lg + theme(axis.title.y = element_text(size = rel(1), color = bvColors[3])) + 
+  ylab("   More Seats -->")
+lg <- lg + theme(axis.text = element_blank())
+lg <- lg + theme(line = element_blank())
 lg
 ```
 
-![](prek_files/figure-html/unnamed-chunk-19-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-22-1.png)<!-- -->
 
 Above we see the legend as a custom rolled heat map.  There is no data in it, just a matrix corresponding to the bin indices in the zip code map. We assign colors to match.
 
@@ -370,12 +520,13 @@ Now we have the map in the 'gg' variable and the legend in the 'lg' variable.  '
 # further annotate plot in the ggplot2 environment
 #strip out the ugly legend
 gg<-bvc$render()  + theme(legend.position="none")
-ggdraw()+ draw_plot(lg,0.2,0.5,width=0.2,height=0.35) + draw_plot(gg)
+ggdraw() + draw_plot(lg,0.2,0.5,width=0.2,height=0.35) + 
+  draw_plot(gg)
 ```
 
-![](prek_files/figure-html/unnamed-chunk-20-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-23-1.png)<!-- -->
 
-This map shows clearly where the low income, well served areas of the city are.
+This map shows clearly where the low income, well served areas of the city are and that the swanky manhattan zip codes have the fewest free pre-K seats per child.
 
 # Wrap-Up
 
@@ -385,16 +536,25 @@ Finally, we can do a simple cross-tab heatmap to aggregate the map data.  It sho
 ```r
 #crosstab of number of zip codes in income and seat Bins
 xtab<-table(allData$seatsBin,allData$incomeBin)
-hm<-as.data.frame(xtab)
+hm <- as_data_frame(xtab)
+#  mutate_all(as.numeric) %>%
+#  round()
 names(hm)<-c("SeatsPer100Kids","HouseholdIncome","Freq")
-
+hm <- hm %>% mutate(SeatsPer100Kids=as_factor(SeatsPer100Kids))
+hm <- hm %>% mutate(HouseholdIncome=as_factor(HouseholdIncome))
+hm <- hm %>% rename(ZipCount = Freq)
 #show heatmap of crosstab
 # this suggests that high income zip codes are underserved with pre-K seats
-ggplot(hm, aes(SeatsPer100Kids, HouseholdIncome)) + geom_tile(aes(fill = Freq),colour = "white") +
-       scale_fill_gradient(low = "white", high = "steelblue")
+ggplot(hm, aes(SeatsPer100Kids, HouseholdIncome)) + 
+  geom_tile(aes(fill = ZipCount),colour = "white")  +
+   scale_fill_gradient(low = "lightgrey", 
+                       high = "steelblue",
+                       breaks=c(13,18,23)) +
+    
+  NULL
 ```
 
-![](prek_files/figure-html/unnamed-chunk-21-1.png)<!-- -->
+![](prek_files/figure-html/unnamed-chunk-24-1.png)<!-- -->
 
 
 Thanks for reading!  All errors are my own and I am not trying to make any political points.  I am just a data science dabbler so critiques of the code, methods and conclusions are all welcome!  -- Art Steinmetz

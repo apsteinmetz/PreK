@@ -313,6 +313,10 @@ To set the stage for the bi-variate plot we need to split the data into bins.  A
 bins<-3
 allData<-mutate(allData,seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE))
 allData<-mutate(allData,incomeBin=cut2(HouseholdIncome,g=bins,levels.mean = TRUE))
+#recode numeric bins to descriptions
+levels(allData$seatsBin) = c("Few","Average","Many")
+levels(allData$incomeBin) = c("Low","Average","High")
+
 
 # create a data frame exclusively for use in a chorpleth object
 # contains only zips as "region" and income/seats crosstab as "value"
@@ -380,8 +384,6 @@ Finally, we can do a simple cross-tab heatmap to aggregate the map data.  It sho
 ```{r}
 #crosstab of number of zip codes in income and seat Bins
 xtab<-table(allData$seatsBin,allData$incomeBin)
-rownames(xtab)<-c("Few","Average","Many")
-colnames(xtab)<-c("Low","Middle","High")
 hm <- as_data_frame(xtab)
 #  mutate_all(as.numeric) %>%
 #  round()
