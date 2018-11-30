@@ -47,37 +47,31 @@ addresstokens <-"(Address: )[0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
 #use lines containing address as anchor to mark record boundaries
 lines_address<-grep(addresstokens,listings)
 record_start<-lines_address-1
-record_end<-(lines_address-2)[-1] %>% append(length(record_start))
+record_end<-(lines_address-2)[-1] %>% append(length(listings))
 record_boundaries <- data_frame(start=record_start,end=record_end)
 
+#workhorse function to create a record with all relevant info about a school
 create_record <- function(rec_index){
   rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
   name <- str_extract(rec[1],"(.+)(?=\\|)") %>% str_trim()
   address <- str_extract(rec[2],addresstokens)%>% str_remove("Address: ")
   zip <- str_extract(address,"[0-9]{5}$")
-  # the next two fields should be tolerant of being located on variant lines
+  address <- str_remove(address," [0-9]{5}$")
+  borough <- address %>% str_extract(", ([A-Za-z])+ ") %>% str_remove_all("[, ]")
+  # the next two searches should be tolerant of not knowing line the field is on
   day_length <- str_extract(rec,"([A-Za-z]+)(?=-Day)")  %>% na.omit() %>% as.character() %>% .[1]
-  seats = str_extract(rec,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.numeric() %>% .[1]
+  seats = str_extract(rec,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.integer() %>% .[1]
   return(data_frame(name=name,
                     address=address,
                     zip=zip,
+                    borough = borough,
                     seats = seats,
                     day_length=day_length))
   
 }
-1:10 %>% map(create_record) %>% bind_rows()
 
-map(record_boundaries[1:10,],function(x)create_record(listings[x$start:x$end]))
-# find address line which contains zip and seat count
-listings2 <- listings %>% str_split("\\r?\\n") %>% unlist()
-addresses <- str_extract_all(listings2,addresstokens) %>% unlist() %>% str_remove("Address: ")
-zips <- str_extract_all(addresses,"[0-9]{5}$") %>% unlist()
-
-
-  schools<-as_data_frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
-names(schools)<-c("zip","seats","dayLength")
-#have to convert from factor to character THEN to integer.  Don't know why
-schools$seats<-as.integer(as.character(schools$seats))
+#create data frame with a line for each school
+schools <- 1:nrow(record_boundaries) %>% map(create_record) %>% bind_rows()
 
 # aggregate seat count by zip code
 sumSeats <- schools %>% 
@@ -85,9 +79,11 @@ sumSeats <- schools %>%
   summarise(count = n(), 
             numSeats = sum(seats, na.rm = TRUE))
 names(sumSeats)<-c("zip","schools","numSeats")
+# aggregate seat count by zip code
 
-mtcars %>%
-  split(.$cyl) %>%
-  map(~ lm(mpg ~ wt, data = .x)) %>%
-  map(summary) %>%
-  map_dbl("r.squared")
+sumSeats <- schools %>% 
+  group_by(borough) %>% 
+  summarise(count = n(), 
+            numSeats = sum(seats, na.rm = TRUE))
+names(sumSeats)<-c("borough","schools","numSeats")
+sumSeats
