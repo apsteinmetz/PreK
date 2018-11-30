@@ -2,15 +2,7 @@
 title: 'Exploring NYC Pre-K seats vs. Neighborhood Income'
 author: 'Art Steinmetz'
 date: '13 January 2017'
-output:
-  html_document:
-    number_sections: true
-    toc: true
-    fig_width: 7
-    fig_height: 4.5
-    theme: readable
-    highlight: tango
-    keep_md: true
+
 ---
 
 # Introduction
@@ -30,68 +22,16 @@ A further complication is to directly grab the income and population data from t
 
 ```r
 library(Hmisc) # cut2 for binning
-```
-
-```
-## Warning: package 'Formula' was built under R version 3.4.4
-```
-
-```r
 library(choroplethr)
-```
-
-```
-## Warning: package 'choroplethr' was built under R version 3.4.4
-```
-
-```
-## Warning: package 'acs' was built under R version 3.4.4
-```
-
-```
-## Warning: package 'stringr' was built under R version 3.4.4
-```
-
-```
-## Warning: package 'XML' was built under R version 3.4.4
-```
-
-```r
 #not on CRAN. Do an install the first time
 #devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
 library(choroplethrZip)
 library(acs)  # retrieve census data
 library(tidyverse)
-```
-
-```
-## Warning: package 'tidyr' was built under R version 3.4.4
-```
-
-```
-## Warning: package 'readr' was built under R version 3.4.4
-```
-
-```
-## Warning: package 'purrr' was built under R version 3.4.4
-```
-
-```
-## Warning: package 'dplyr' was built under R version 3.4.4
-```
-
-```r
 library(stringr)
 library(reshape2)
 library(ggplot2) 
 library(cowplot)
-```
-
-```
-## Warning: package 'cowplot' was built under R version 3.4.4
-```
-
-```r
 library(jpeg)
 ```
 
@@ -460,7 +400,7 @@ allData<-mutate(allData,incomeBin=cut2(HouseholdIncome,g=bins,levels.mean = TRUE
 #recode numeric bins to descriptions
 levels(allData$seatsBin) = c("Few","Average","Many")
 levels(allData$incomeBin) = c("Low","Average","High")
-
+save(allData,file="data/alldata2016.rdata")
 
 # create a data frame exclusively for use in a chorpleth object
 # contains only zips as "region" and income/seats crosstab as "value"

@@ -27,7 +27,7 @@ A further complication is to directly grab the income and population data from t
 
 # Load Libraries
 
-```{r, message=FALSE}
+```{r message=FALSE, warning=FALSE}
 library(Hmisc) # cut2 for binning
 library(choroplethr)
 #not on CRAN. Do an install the first time
@@ -316,7 +316,7 @@ allData<-mutate(allData,incomeBin=cut2(HouseholdIncome,g=bins,levels.mean = TRUE
 #recode numeric bins to descriptions
 levels(allData$seatsBin) = c("Few","Average","Many")
 levels(allData$incomeBin) = c("Low","Average","High")
-
+save(allData,file="data/alldata2016.rdata")
 
 # create a data frame exclusively for use in a chorpleth object
 # contains only zips as "region" and income/seats crosstab as "value"
