@@ -15,12 +15,12 @@ urls<-c("https://www.schools.nyc.gov/docs/default-source/default-document-librar
         "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectoryqueens-english",
         "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectorystatenislandenglishweb-english")
 
-boroughs <- c('Manhattan','Bronx','Brooklyn','Queens','Staten')
+boroughs <- c('Bronx','Brooklyn','Manhattan','Queens','Staten')
 
 #regex to parse address line
 pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
 
-dests <- paste0("pdf/",boroughs,".pdf")
+dests <- paste0("pdf/",boroughs,"2018_Pre_K.pdf")
 
 for (i in 1:length(urls)) {
   download.file(urls[i],destfile = dests[i],mode = "wb")
@@ -33,17 +33,43 @@ for (i in 1:length(dests)) {
   # "Playspace:" is marker for actual directory listing of programs on that page
   # Discard other pages
   txt <- txt[str_detect(txt,"Playspace:")]
-  txt <- txt[-1] #first instance is an example page
+  txt <- txt[-1] #first instance is an example page. discard.
   listings <- append(listings,txt)
   # file.remove(dests[i])
 }
+#divide listings into separate lines
+listings <- listings %>% str_split("\\r?\\n") %>% unlist()
+
+# regex to extract valid address
+addresstokens <-"(Address: )[0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
+#use lines containing address as anchor to mark record boundaries
+lines_address<-grep(addresstokens,listings)
+record_start<-lines_address-1
+# record_end<-(lines_address-2)[-1] %>% append(length(lines_record_start))
+# record_boundaries <- data_frame(start=record_start,end=record_end)
+
+create_record <- function(rec){
+  name <- str_extract(rec[1],"(.+)(?=\\|)") %>% str_trim()
+  address <- str_extract(rec[2],addresstokens)%>% str_remove("Address: ")
+  zip <- str_extract(address,"[0-9]{5}$")
+  day_length <- rec[3] %>% str_extract("([A-Za-z]+)(?=-Day)")
+  seats = str_extract(tmp,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.numeric()
+  return(data_frame(name=name,
+                    address=address,
+                    zip=zip,
+                    seats = seats,
+                    day_length=day_length))
+  
+}
+create_record(listings[record_boundaries[100,]$start:record_boundaries[100,]$end])
 
 # find address line which contains zip and seat count
-txt2<-txt[grep("Address:",txt)]
-# strip chars that will mess up regex
-pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
-txt2<-sub("'","",txt2)
-schools<-as_data_frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
+listings2 <- listings %>% str_split("\\r?\\n") %>% unlist()
+addresses <- str_extract_all(listings2,addresstokens) %>% unlist() %>% str_remove("Address: ")
+zips <- str_extract_all(addresses,"[0-9]{5}$") %>% unlist()
+
+
+  schools<-as_data_frame(str_match(txt2,pkseattokens))[,c(4,6,7)]
 names(schools)<-c("zip","seats","dayLength")
 #have to convert from factor to character THEN to integer.  Don't know why
 schools$seats<-as.integer(as.character(schools$seats))
