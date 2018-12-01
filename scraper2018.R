@@ -17,9 +17,6 @@ urls<-c("https://www.schools.nyc.gov/docs/default-source/default-document-librar
 
 boroughs <- c('Bronx','Brooklyn','Manhattan','Queens','Staten')
 
-#regex to parse address line
-#pkseattokens <-"(Address: )([.[:alnum:]- ()]+),+ ([0-9]{5})([a-zA-Z .()-:]+) ([0-9]{1,4}) (FD|HD|AM|PM|5H)"
-
 dests <- paste0("pdf/",boroughs,"2018_Pre_K.pdf")
 
 # Download PDF directories from NYC
@@ -27,18 +24,20 @@ for (i in 1:length(urls)) {
   download.file(urls[i],destfile = dests[i],mode = "wb")
 }
 
-# extract and combine text
+# extract and combine text from PDFs
 listings <- NULL
 for (i in 1:length(dests)) {
   print(dests[i])
   txt <- suppressMessages(pdf_text(dests[i]))
-  # "Playspace:" is marker for actual directory listing of programs on that page
+  # "Playspace:" is marker for actual directory listing of pre-k schools on that page
   # Discard other pages
   txt <- txt[str_detect(txt,"Playspace:")]
   txt <- txt[-1] #first instance is an example page. discard.
   listings <- append(listings,txt)
   # file.remove(dests[i])
 }
+
+#text is in one page per item
 #divide listings into separate lines
 listings <- listings %>% str_split("\\r?\\n") %>% unlist()
 
@@ -48,11 +47,12 @@ addresstokens <-"(Address: )[0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
 lines_address<-grep(addresstokens,listings)
 record_start<-lines_address-1
 record_end<-(lines_address-2)[-1] %>% append(length(listings))
-record_boundaries <- data_frame(start=record_start,end=record_end)
+#record_boundaries <- data_frame(start=record_start,end=record_end)
 
 #workhorse function to create a record with all relevant info about a school
 create_record <- function(rec_index){
-  rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
+  #rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
+  rec <- listings[record_start[rec_index]:record_end[rec_index]]
   name <- str_extract(rec[1],"(.+)(?=\\|)") %>% str_trim()
   address <- str_extract(rec[2],addresstokens)%>% str_remove("Address: ")
   zip <- str_extract(address,"[0-9]{5}$")
@@ -71,17 +71,17 @@ create_record <- function(rec_index){
 }
 
 #create data frame with a line for each school
-schools <- 1:nrow(record_boundaries) %>% map(create_record) %>% bind_rows()
-
+schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
+save(schools_2018,file="data/schools_2018.rdata")
 # aggregate seat count by zip code
-sumSeats <- schools %>% 
+sumSeats <- schools_2018 %>% 
   group_by(zip) %>% 
   summarise(count = n(), 
             numSeats = sum(seats, na.rm = TRUE))
 names(sumSeats)<-c("zip","schools","numSeats")
 # aggregate seat count by zip code
 
-sumSeats <- schools %>% 
+sumSeats <- schools_2018 %>% 
   group_by(borough) %>% 
   summarise(count = n(), 
             numSeats = sum(seats, na.rm = TRUE))
