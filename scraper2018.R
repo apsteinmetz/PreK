@@ -19,11 +19,12 @@ boroughs <- c('Bronx','Brooklyn','Manhattan','Queens','Staten')
 
 dests <- paste0("pdf/",boroughs,"2018_Pre_K.pdf")
 
-# Download PDF directories from NYC
-for (i in 1:length(urls)) {
-  download.file(urls[i],destfile = dests[i],mode = "wb")
+# Download PDF directories from NYC if PDFs are not already present
+if (!is.na(match(FALSE,file.exists(dests)))) {
+  for (i in 1:length(urls)) {
+    download.file(urls[i],destfile = dests[i],mode = "wb")
+  }
 }
-
 # extract and combine text from PDFs
 listings <- NULL
 for (i in 1:length(dests)) {
@@ -42,12 +43,12 @@ for (i in 1:length(dests)) {
 listings <- listings %>% str_split("\\r?\\n") %>% unlist()
 
 # regex to extract valid address
-addresstokens <-"(Address: )[0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
+#addresstokens <-"(Address: )['-./0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
+addresstokens <-"(Address: ).+([0-9]{5})"
 #use lines containing address as anchor to mark record boundaries
 lines_address<-grep(addresstokens,listings)
 record_start<-lines_address-1
 record_end<-(lines_address-2)[-1] %>% append(length(listings))
-#record_boundaries <- data_frame(start=record_start,end=record_end)
 
 #workhorse function to create a record with all relevant info about a school
 create_record <- function(rec_index){
@@ -57,7 +58,7 @@ create_record <- function(rec_index){
   address <- str_extract(rec[2],addresstokens)%>% str_remove("Address: ")
   zip <- str_extract(address,"[0-9]{5}$")
   address <- str_remove(address," [0-9]{5}$")
-  borough <- address %>% str_extract(", ([A-Za-z])+ ") %>% str_remove_all("[, ]")
+  borough <- address %>% str_extract("[A-z]+(?= NY)")
   # the next two searches should be tolerant of not knowing line the field is on
   day_length <- str_extract(rec,"([A-Za-z]+)(?=-Day)")  %>% na.omit() %>% as.character() %>% .[1]
   seats = str_extract(rec,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.integer() %>% .[1]
@@ -73,6 +74,8 @@ create_record <- function(rec_index){
 #create data frame with a line for each school
 schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
 save(schools_2018,file="data/schools_2018.rdata")
+
+
 # aggregate seat count by zip code
 sumSeats <- schools_2018 %>% 
   group_by(zip) %>% 
