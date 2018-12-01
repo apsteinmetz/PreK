@@ -10,13 +10,13 @@ library(Hmisc) # cut2 for binning
 #not on CRAN. Do an install the first time
 #devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
 #library(choroplethrZip)
-library(acs)  # retrieve census data
-library(tidyverse)
+#library(acs)  # retrieve census data
 library(stringr)
 library(reshape2)
 #library(cowplot)
 #library(jpeg)
 library(tidyverse)
+library(tidycensus)
 library(pdftools)
 
 ```
@@ -109,6 +109,37 @@ schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
 schools_2018 <- schools_2018 %>% mutate(borough = ifelse(borough=="Island","Staten",borough))
 save(schools_2018,file="data/schools_2018.rdata")
 ```
+Get census data
+Income and population of school age children.
+```{r}
+census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
+
+v15 <- load_variables(2016, "acs5", cache = TRUE)
+View(v15)
+
+acs_table_pop <- "B01003_001"
+acs_table_kid <- "B05009_002" #under 6
+acs_table_inc <- "B19013_001" #median, last 12 months
+# NYC county codes
+nyc_fips = c("085","005", "047", "061", "081") # use as "county"
+nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes from USPS web site
+
+# we can only use the zcta geography if we fetch the whole country!
+income_raw <- get_acs(geography = "zcta",
+              variables = c(medincome = acs_table_inc))
+
+# filter for just NYC zip codes
+income <- income_raw %>% 
+  rename(zip=GEOID) %>% 
+  select(zip,estimate) %>% 
+  rename(HouseholdIncome=estimate) %>%
+  right_join(nyc_zips) %>% 
+  na.omit() %>% 
+  select(zip,HouseholdIncome)
+```
+
+
+
 
 Compare 2016 to 2018
 ```{r}
@@ -133,21 +164,29 @@ load("data/alldata2016.rdata")
 #2016 data doesn't have boroughs so map zips to boroughs from 2018 data
 sumSeats2016<-schools_2018 %>% select(borough,zip) %>% 
   unique() %>% 
-  right_join(alldata2016) %>%
+  right_join(alldata2016,by=c("borough","zip")) %>%
   select(borough,schools,numSeats) %>% 
   group_by(borough) %>% 
   summarise(schools = sum(schools), 
             numSeats = sum(numSeats, na.rm = TRUE)) %>% 
   mutate(year=as.integer(2016))
-sumSeats <- bind_rows(sumSeats2016,sumSeats2018) %>% mutate(year=as.factor(year))
+sumSeats <- bind_rows(sumSeats2016,sumSeats2018 %>% mutate(year=as.factor(year)))
 ggplot(sumSeats,aes(borough,schools,fill=year)) + 
   geom_col(position = "dodge") + 
-  scale_y_continuous(labels=scales::comma)
+  scale_y_continuous(labels=scales::comma) + 
+  labs(title = "Expansion of NYC Free Pre-K",
+       caption = "source: nyc.gov",
+       x = "Borough",
+       y = "Number of Schools")
 ```
 
 ```{r}
 ggplot(sumSeats,aes(borough,numSeats,fill=year)) + 
   geom_col(position = "dodge") + 
-  scale_y_continuous(labels=scales::comma)
+  scale_y_continuous(labels=scales::comma) +
+  labs(title = "Expansion of NYC Free Pre-K",
+       caption = "source: nyc.gov",
+       x = "Borough",
+       y = "Number of Seats")
 ```
 
