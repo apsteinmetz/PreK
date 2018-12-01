@@ -1,0 +1,153 @@
+---
+title: "Pre-K 2018"
+output: html_notebook
+---
+# Load Libraries
+
+```{r message=FALSE, warning=FALSE}
+library(Hmisc) # cut2 for binning
+#library(choroplethr)
+#not on CRAN. Do an install the first time
+#devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
+#library(choroplethrZip)
+library(acs)  # retrieve census data
+library(tidyverse)
+library(stringr)
+library(reshape2)
+#library(cowplot)
+#library(jpeg)
+library(tidyverse)
+library(pdftools)
+
+```
+
+```{r}
+# download and scrape NYC PRE-K pdf directories
+# -----------------------------------------------------------------------
+# get NYC data on pre-K programs in 2018
+# scan seat directory pdfs and put into a data frame by zip code
+#DOE pre-k directories
+
+
+
+#urls valid as of November 2018
+urls<-c("https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectorybronx-english",
+        "https://www.schools.nyc.gov/docs/default-source/default-document-library/nyc-pre-kindergarten-directory-brooklyn",
+        "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018-nyc-prek-directory-manhattan-english",
+        "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectoryqueens-english",
+        "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectorystatenislandenglishweb-english")
+
+boroughs <- c('Bronx','Brooklyn','Manhattan','Queens','Staten')
+
+dests <- paste0("pdf/",boroughs,"2018_Pre_K.pdf")
+
+# Download PDF directories from NYC if PDFs are not already present
+if (!is.na(match(FALSE,file.exists(dests)))) {
+  for (i in 1:length(urls)) {
+    download.file(urls[i],destfile = dests[i],mode = "wb")
+  }
+}
+```
+
+Extract text from PDFs.  Select only those pages that are directory listings and split into lines.
+```{r}
+# extract and combine text from PDFs
+listings <- NULL
+for (i in 1:length(dests)) {
+  print(dests[i])
+  txt <- suppressMessages(pdf_text(dests[i]))
+  # "Playspace:" is marker for actual directory listing of pre-k schools on that page
+  # Discard other pages
+  txt <- txt[str_detect(txt,"Playspace:")]
+  txt <- txt[-1] #first instance is an example page. discard.
+  listings <- append(listings,txt)
+  # file.remove(dests[i])
+}
+
+#text is in one page per item
+#divide listings into separate lines
+listings <- listings %>% str_split("\\r?\\n") %>% unlist()
+```
+
+Detect record boundaries and turn list of lines into a clean data frame of school listings.
+```{r}
+# regex to extract valid address
+#addresstokens <-"(Address: )['-./0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
+addresstokens <-"(Address: ).+([0-9]{5})"
+#use lines containing address as anchor to mark record boundaries
+lines_address<-grep(addresstokens,listings)
+record_start<-lines_address-1
+record_end<-(lines_address-2)[-1] %>% append(length(listings))
+
+#----------------------------
+#workhorse function to create a record with all relevant info about a school
+create_record <- function(rec_index){
+  #rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
+  rec <- listings[record_start[rec_index]:record_end[rec_index]]
+  name <- str_extract(rec[1],"(.+)(?=\\|)") %>% str_trim()
+  district <- str_extract(rec[1],"(?<=\\| )[0-9]{2}") %>% str_trim() %>% as.integer()
+  address <- str_extract(rec[2],addresstokens)%>% str_remove("Address: ")
+  zip <- str_extract(address,"[0-9]{5}$")
+  address <- str_remove(address," [0-9]{5}$")
+  borough <- address %>% str_extract("[A-z]+(?= NY)")
+  # the next two searches should be tolerant of not knowing line the field is on
+  day_length <- str_extract(rec,"([A-Za-z]+)(?=-Day)")  %>% na.omit() %>% as.character() %>% .[1]
+  seats = str_extract(rec,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.integer() %>% .[1]
+  return(data_frame(name=name,
+                    address=address,
+                    zip=zip,
+                    borough = borough,
+                    district = district,
+                    seats = seats,
+                    day_length=day_length))
+  
+}
+#----------------------------
+
+#create data frame with a line for each school
+schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
+schools_2018 <- schools_2018 %>% mutate(borough = ifelse(borough=="Island","Staten",borough))
+save(schools_2018,file="data/schools_2018.rdata")
+```
+
+Compare 2016 to 2018
+```{r}
+# aggregate seat count by zip code
+sumSeats <- schools_2018 %>% 
+  group_by(zip) %>% 
+  summarise(count = n(), 
+            numSeats = sum(seats, na.rm = TRUE))
+names(sumSeats)<-c("zip","schools","numSeats")
+# aggregate seat count by zip code
+
+
+sumSeats2018 <- schools_2018 %>% 
+  group_by(borough) %>% 
+  summarise(schools = n(), 
+            numSeats = sum(seats, na.rm = TRUE)) %>% 
+  mutate(year=as.integer(2018))
+
+
+load("data/alldata2016.rdata")
+
+#2016 data doesn't have boroughs so map zips to boroughs from 2018 data
+sumSeats2016<-schools_2018 %>% select(borough,zip) %>% 
+  unique() %>% 
+  right_join(alldata2016) %>%
+  select(borough,schools,numSeats) %>% 
+  group_by(borough) %>% 
+  summarise(schools = sum(schools), 
+            numSeats = sum(numSeats, na.rm = TRUE)) %>% 
+  mutate(year=as.integer(2016))
+sumSeats <- bind_rows(sumSeats2016,sumSeats2018) %>% mutate(year=as.factor(year))
+ggplot(sumSeats,aes(borough,schools,fill=year)) + 
+  geom_col(position = "dodge") + 
+  scale_y_continuous(labels=scales::comma)
+```
+
+```{r}
+ggplot(sumSeats,aes(borough,numSeats,fill=year)) + 
+  geom_col(position = "dodge") + 
+  scale_y_continuous(labels=scales::comma)
+```
+
