@@ -17,6 +17,7 @@ library(reshape2)
 #library(jpeg)
 library(tidyverse)
 library(tidycensus)
+library(tigris)
 library(pdftools)
 
 ```
@@ -110,44 +111,38 @@ schools_2018 <- schools_2018 %>% mutate(borough = ifelse(borough=="Island","Stat
 save(schools_2018,file="data/schools_2018.rdata")
 ```
 Get census data
-Income, population, population of school age children and census tract geometries.
+Income, population, population of school age children and census zip code geometries.
 ```{r}
+tiger_nyc_zips <-zctas(cb = FALSE, 
+                       starts_with = c("10","11"), 
+                       state = "NY",
+                       year = 2010,
+                       class = "sf")
+
 census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
 options(tigris_use_cache = TRUE)
 
 v15 <- load_variables(2016, "acs5", cache = TRUE)
 View(v15)
 
-acs_table_pop <- "B01003_001"
-acs_table_kid <- "B05009_002" #under 6
-acs_table_inc <- "B19013_001" #median, last 12 months
+acs_table_pop <- "B01003_001" # total population
+acs_table_kid <- "B05009_002" # children under 6
+acs_table_inc <- "B19013_001" # median income, last 12 months
 # NYC county codes
 nyc_fips = c("085","005", "047", "061", "081") # use as "county"
 #nyc_geoids = c("36085","36005", "36047", "36061", "36081")
-#nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes from USPS web site
+nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes from USPS web site
 
 # we can only use the zcta geography if we fetch the whole country!
-# acs_raw <- get_acs(geography = "zcta",
-#              variables = c(HouseholdIncome = acs_table_inc,
-#                            kidsUnder3 = acs_table_kid,
-#                            totpop = acs_table_pop))
+ acs_raw <- get_acs(geography = "zcta",
+                    variables = c(HouseholdIncome = acs_table_inc,
+                            kidsUnder3 = acs_table_kid,
+                            totpop = acs_table_pop))
 
-# Let's opt for census tracts instead so we can just get NY
-# Choose wide rather than tidy so we don't fetch multiple copies of spatial data.
-acs_raw <- get_acs(geography = "tract",
-                   variables = c(HouseholdIncome = acs_table_inc,
-                                 kidsUnder3 = acs_table_kid,
-                                 totpop = acs_table_pop),
-                   geometry = TRUE,
-                   state = "NY",
-                   county = nyc_fips,
-#                   survey = "acs1",
-                   output = "wide")
 
-select_if(acs_raw,function(x)str_detect(x,"(.+)E$"))
 
 # filter for just NYC zip codes
-income <- income_raw %>% 
+acs_dat<- acs_raw %>% 
   rename(zip=GEOID) %>% 
   select(zip,estimate) %>% 
   rename(HouseholdIncome=estimate) %>%
