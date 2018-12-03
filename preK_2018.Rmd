@@ -18,6 +18,7 @@ library(reshape2)
 library(tidyverse)
 library(tidycensus)
 library(tigris)
+library(sf)
 library(pdftools)
 
 ```
@@ -116,7 +117,8 @@ Income, population, population of school age children and census zip code geomet
 # I keep my census api key in a system variable. This adds it to the r environment 
 # with a label that tidycensus expects.
 if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
-options(tigris_use_cache = TRUE)
+#options(tigris_use_cache = TRUE)
+options(tigris_refresh = TRUE)
 
 # get zip code boundaries from Tigris
 geo_nyc_zips_raw <-zctas(cb = FALSE, 
@@ -148,15 +150,15 @@ nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes 
 Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the map data for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names.
 ```{r}
 # filter for just NYC zip codes
+# and make the data wide
 acs_dat<- acs_raw %>% 
   rename(zip=GEOID) %>% 
   right_join(nyc_zips) %>% 
-  na.omit()
-
-#now make the data wide
- acs_dat<-acs_dat %>% 
-   select(zip,variable,estimate) %>% 
-   spread(variable,estimate)
+  select(zip,variable,estimate) %>% 
+  filter(!is.na(variable)) %>% 
+  spread(variable,estimate) %>% 
+  filter(!is.na(HouseholdIncome)) %>% 
+   {.}
 ```
 
 Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
