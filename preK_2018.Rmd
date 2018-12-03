@@ -150,7 +150,7 @@ nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes 
  acs_raw <- get_acs(geography = "zcta",
                     variables = c(HouseholdIncome = acs_table_inc,
                             kidsUnder3 = acs_table_kid,
-                            totpop = acs_table_pop))
+                            totPop = acs_table_pop))
 ```
 
 Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the map data for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names.
@@ -183,13 +183,43 @@ all_data_2018 <- geo_nyc_zips %>%
   left_join(acs_dat,by="zip") %>% 
   left_join(sum_seats,by="zip") %>% 
   # remove non-NYC geometries
-  filter(!is.na(HouseholdIncome))
+  filter(!is.na(HouseholdIncome)) %>% 
+  # some tiny zips have people but no schools.  Set schools to zero.
+  mutate(schools=ifelse(is.na(schools),0,schools)) %>% 
+  mutate(numSeats=ifelse(schools==0,0,numSeats)) 
+  
 
+#add per-capita variables
+all_data_2018 <- all_data_2018 %>% 
+  mutate(seatsPer100Kids = round(numSeats/kidsUnder3*100,digits=1),
+         seatsPer1000People=round(numSeats/totPop*1000,digits=1)) %>%
+  mutate(seatsPer100Kids=ifelse(is.nan(seatsPer100Kids),0,seatsPer100Kids))
+#compute income quantiles
+fn<-ecdf(all_data_2018$HouseholdIncome)
+all_data_2018 <- all_data_2018 %>% 
+  mutate(incomeQuantile=fn(HouseholdIncome))
+#compute seatsPer100Kids quantiles
+fn<-ecdf(allData$seatsPer100Kids)
+all_data_2018 <- all_data_2018 %>% 
+  mutate(seatsQuantile=fn(seatsPer100Kids))
+# aggregate quantiles into three categorical bins
+bins<-3
+all_data_2018 <- all_data_2018 %>% 
+  mutate(seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE)) %>% 
+  mutate(incomeBin=cut2(HouseholdIncome,g=bins,levels.mean = TRUE))
+#recode numeric bins to descriptions
+levels(all_data_2018$seatsBin) = c("Few","Average","Many")
+levels(all_data_2018$incomeBin) = c("Low","Average","High")
+save(all_data_2018,file="data/alldata2018.rdata")
+
+```
+
+```{r}
 all_data_2018 %>%
-  ggplot(aes(fill = HouseholdIncome, color = HouseholdIncome)) +
+  ggplot(aes(fill = incomeBin, color = incomeBin)) +
   geom_sf() +
-  scale_fill_viridis_c() +
-  scale_color_viridis_c()
+  scale_fill_viridis_d() +
+  scale_color_viridis_d()
 ```
 
 Bonus! Compare 2016 to 2018
