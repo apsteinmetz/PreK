@@ -118,18 +118,24 @@ Income, population, population of school age children and census zip code geomet
 # with a label that tidycensus expects.
 if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
 #options(tigris_use_cache = TRUE)
-options(tigris_refresh = TRUE)
+options(tigris_use_cache = TRUE)
 
 # get zip code boundaries from Tigris
 geo_nyc_zips_raw <-zctas(cb = FALSE, 
-                       starts_with = c("10","11"), 
+                       starts_with = c("10","11"),
                        state = "NY",
                        year = 2010,
                        class = "sf")
 
 geo_nyc_zips <- geo_nyc_zips_raw %>% rename(zip= ZCTA5CE10) %>% select(zip,geometry)
+
+#The returned set of geometries includes long island and Westchester so
+#crop the bounding box to get a better sized map.
+nyc_box<-c(xmin=-74.5,ymin=40.5,xmax=-73.6,ymax=41.0)
+geo_nyc_zips <-geo_nyc_zips %>%  st_crop(nyc_box)
+save(geo_nyc_zips,file="data/geo_nyc_zips.rdata")
 # FYI if you want to see all the available acs tables from the census bureau
-# v15 <- load_variables(2016, "acs5", cache = TRUE)
+# v15 <- load_tvariables(2016, "acs5", cache = TRUE)
 # View(v15)
 
 acs_table_pop <- "B01003_001" # total population
@@ -158,7 +164,9 @@ acs_dat<- acs_raw %>%
   filter(!is.na(variable)) %>% 
   spread(variable,estimate) %>% 
   filter(!is.na(HouseholdIncome)) %>% 
-   {.}
+  {.}
+
+save(acs_dat,file="data/acs_dat.rdata")
 ```
 
 Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
@@ -172,18 +180,17 @@ sum_seats <- schools_2018 %>%
             numSeats = sum(seats, na.rm = TRUE))
 
 all_data_2018 <- geo_nyc_zips %>% 
-  left_join(acs_dat) %>% 
-  left_join(sum_seats)
+  left_join(acs_dat,by="zip") %>% 
+  left_join(sum_seats,by="zip") %>% 
+  # remove non-NYC geometries
+  filter(!is.na(HouseholdIncome))
 
 all_data_2018 %>%
-  ggplot(aes(fill = totpop, color = totpop)) +
+  ggplot(aes(fill = HouseholdIncome, color = HouseholdIncome)) +
   geom_sf() +
   scale_fill_viridis_c() +
   scale_color_viridis_c()
 ```
-
-
-
 
 Bonus! Compare 2016 to 2018
 ```{r}
