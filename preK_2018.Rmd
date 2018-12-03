@@ -113,56 +113,68 @@ save(schools_2018,file="data/schools_2018.rdata")
 Get census data
 Income, population, population of school age children and census zip code geometries.
 ```{r}
-tiger_nyc_zips <-zctas(cb = FALSE, 
+# I keep my census api key in a system variable. This adds it to the r environment 
+# with a label that tidycensus expects.
+if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
+options(tigris_use_cache = TRUE)
+
+# get zip code boundaries from Tigris
+geo_nyc_zips <-zctas(cb = FALSE, 
                        starts_with = c("10","11"), 
                        state = "NY",
                        year = 2010,
                        class = "sf")
 
-census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
-options(tigris_use_cache = TRUE)
-
-v15 <- load_variables(2016, "acs5", cache = TRUE)
-View(v15)
+# FYI if you want to see all the available acs tables from the census bureau
+# v15 <- load_variables(2016, "acs5", cache = TRUE)
+# View(v15)
 
 acs_table_pop <- "B01003_001" # total population
 acs_table_kid <- "B05009_002" # children under 6
 acs_table_inc <- "B19013_001" # median income, last 12 months
 # NYC county codes
-nyc_fips = c("085","005", "047", "061", "081") # use as "county"
+#nyc_fips = c("085","005", "047", "061", "081") # use as "county"
 #nyc_geoids = c("36085","36005", "36047", "36061", "36081")
 nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes from USPS web site
 
-# we can only use the zcta geography if we fetch the whole country!
+# we can only use the zcta (zip code) geography if we fetch the whole country!
  acs_raw <- get_acs(geography = "zcta",
                     variables = c(HouseholdIncome = acs_table_inc,
                             kidsUnder3 = acs_table_kid,
                             totpop = acs_table_pop))
+```
 
-
-
+Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the map data for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names.
+```{r}
 # filter for just NYC zip codes
 acs_dat<- acs_raw %>% 
   rename(zip=GEOID) %>% 
-  select(zip,estimate) %>% 
-  rename(HouseholdIncome=estimate) %>%
   right_join(nyc_zips) %>% 
-  na.omit() %>% 
-  select(zip,HouseholdIncome)
+  na.omit()
+
+#now make the data wide
+ acs_dat<-acs_dat %>% 
+   select(zip,variable,estimate) %>% 
+   spread(variable,estimate)
 ```
 
+Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
 
-
-
-Compare 2016 to 2018
 ```{r}
 # aggregate seat count by zip code
+
 sumSeats <- schools_2018 %>% 
   group_by(zip) %>% 
   summarise(count = n(), 
             numSeats = sum(seats, na.rm = TRUE))
 names(sumSeats)<-c("zip","schools","numSeats")
-# aggregate seat count by zip code
+
+```
+
+
+Compare 2016 to 2018
+```{r}
+# aggregate seat count by borough
 
 
 sumSeats2018 <- schools_2018 %>% 
