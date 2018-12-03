@@ -119,12 +119,13 @@ if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) census_api_key(Sys.getenv("CENSUS_KE
 options(tigris_use_cache = TRUE)
 
 # get zip code boundaries from Tigris
-geo_nyc_zips <-zctas(cb = FALSE, 
+geo_nyc_zips_raw <-zctas(cb = FALSE, 
                        starts_with = c("10","11"), 
                        state = "NY",
                        year = 2010,
                        class = "sf")
 
+geo_nyc_zips <- geo_nyc_zips_raw %>% rename(zip= ZCTA5CE10) %>% select(zip,geometry)
 # FYI if you want to see all the available acs tables from the census bureau
 # v15 <- load_variables(2016, "acs5", cache = TRUE)
 # View(v15)
@@ -163,16 +164,26 @@ Now we have everything we need to make some maps: the schools data from the city
 ```{r}
 # aggregate seat count by zip code
 
-sumSeats <- schools_2018 %>% 
+sum_seats <- schools_2018 %>% 
   group_by(zip) %>% 
-  summarise(count = n(), 
+  summarise(schools = n(), 
             numSeats = sum(seats, na.rm = TRUE))
-names(sumSeats)<-c("zip","schools","numSeats")
 
+all_data_2018 <- geo_nyc_zips %>% 
+  left_join(acs_dat) %>% 
+  left_join(sum_seats)
+
+all_data_2018 %>%
+  ggplot(aes(fill = totpop, color = totpop)) +
+  geom_sf() +
+  scale_fill_viridis_c() +
+  scale_color_viridis_c()
 ```
 
 
-Compare 2016 to 2018
+
+
+Bonus! Compare 2016 to 2018
 ```{r}
 # aggregate seat count by borough
 
