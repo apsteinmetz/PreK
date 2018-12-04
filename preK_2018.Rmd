@@ -113,7 +113,7 @@ save(schools_2018,file="data/schools_2018.rdata")
 ```
 Get census data
 Income, population, population of school age children and census zip code geometries.
-```{r}
+```{r message=FALSE, warning=FALSE}
 # I keep my census api key in a system variable. This adds it to the r environment 
 # with a label that tidycensus expects.
 if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
@@ -171,6 +171,8 @@ save(acs_dat,file="data/acs_dat.rdata")
 
 Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
 
+We show some editorial judgement in setting the levels of the interplay of income and seats.  This is, for our purposes, high income and low seats is "good" along with "low income" and "high seats."  We will use this ordering when coloring our maps.
+
 ```{r}
 # aggregate seat count by zip code
 
@@ -199,7 +201,7 @@ fn<-ecdf(all_data_2018$HouseholdIncome)
 all_data_2018 <- all_data_2018 %>% 
   mutate(incomeQuantile=fn(HouseholdIncome))
 #compute seatsPer100Kids quantiles
-fn<-ecdf(allData$seatsPer100Kids)
+fn<-ecdf(all_data_2018$seatsPer100Kids)
 all_data_2018 <- all_data_2018 %>% 
   mutate(seatsQuantile=fn(seatsPer100Kids))
 # aggregate quantiles into three categorical bins
@@ -208,16 +210,48 @@ all_data_2018 <- all_data_2018 %>%
   mutate(seatsBin=cut2(seatsPer100Kids,g=bins,levels.mean = TRUE)) %>% 
   mutate(incomeBin=cut2(HouseholdIncome,g=bins,levels.mean = TRUE))
 #recode numeric bins to descriptions
+# judge what are good and bad combos of income and seats
+desired_combos <- c("Low Many",
+                    "High Few",
+                    "Low Average",
+                    "Average Many",
+                    "Average Average",
+                    "Average Few",
+                    "High Average",
+                    "High Many",
+                    "Low Few")
+
 levels(all_data_2018$seatsBin) = c("Few","Average","Many")
 levels(all_data_2018$incomeBin) = c("Low","Average","High")
+
+desired_combos <- c("Many Low",
+                    "Few High",
+                    "Average Low",
+                    "Many Average",
+                    "Average Average",
+                    "Few Average",
+                    "Average High",
+                    "Many High",
+                    "Few Low")
+
+all_data_2018 <- all_data_2018 %>% 
+  mutate(combo = factor(paste(seatsBin,incomeBin),
+                           levels = desired_combos))
+
 save(all_data_2018,file="data/alldata2018.rdata")
 
 ```
 
+Choropleth
+
+To create a bivariate map we add a new factor that is the character combination of the income bin and the seat count bin.
 ```{r}
+bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
+bvscale <- scale_fill_manual(name="", values=bvColors, drop=FALSE)
+
 all_data_2018 %>%
-  ggplot(aes(fill = incomeBin, color = incomeBin)) +
-  geom_sf() +
+  ggplot(aes(fill = combo, color = combo)) +
+  geom_sf()+
   scale_fill_viridis_d() +
   scale_color_viridis_d()
 ```
