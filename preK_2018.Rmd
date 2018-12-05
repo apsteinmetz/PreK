@@ -20,6 +20,7 @@ library(tidycensus)
 library(tigris)
 library(sf)
 library(pdftools)
+library(mapview)
 
 ```
 
@@ -116,8 +117,10 @@ Income, population, population of school age children and census zip code geomet
 ```{r message=FALSE, warning=FALSE}
 # I keep my census api key in a system variable. This adds it to the r environment 
 # with a label that tidycensus expects.
-if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) census_api_key(Sys.getenv("CENSUS_KEY"),install = TRUE)
-#options(tigris_use_cache = TRUE)
+#if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) 
+  
+census_api_key(Sys.getenv("CENSUS_KEY"),overwrite = TRUE)
+
 options(tigris_use_cache = TRUE)
 
 # get zip code boundaries from Tigris
@@ -215,7 +218,13 @@ save(all_data_2018,file="data/alldata2018.rdata")
 ```
 #The Problem with a Univariate Approach
 
-We are used to seeing univarate color maps but here we have two values, seats and income.  How might we code them into one variable. Given the social justice element of the original question, we might create a single scale of good to bad. So, for our purposes, high income and low seats is "good" along with "low income" and "high seats."  Is the latter more good than the former?
+Initially, we can just view a scatter plot of the quantiles.  Here we see that there is scant relationship between zip code income and per-child seats over most of the range.  The is a cluster of high-income zip codes at the lower end of the seat count.  This alone discounts the notion that the wealthy are getting more than their fair share of seats.
+```{r message=FALSE}
+ggplot(all_data_2018,aes(incomeQuantile,seatsQuantile))+geom_point()+geom_smooth()
+
+```
+
+We are used to seeing univarate color maps but here we have two values, seats and income.  How might we code them into one variable. Given the social justice element of the original question, we might create a single scale of good to bad. So, for our purposes, high income and low seats is "good" along with "low income" and "high seats."  Simply taking the difference between income and seats quantiles works.  The largest differences are "good.""
 
 ```{r}
 #recode numeric bins to descriptions
@@ -225,22 +234,17 @@ We are used to seeing univarate color maps but here we have two values, seats an
 all_data_2018 <- all_data_2018 %>% 
   mutate(combo = abs(seatsQuantile - incomeQuantile))
 
-         #recode as numeric so we can do a continuous color scale
-levels(all_data_2018$combo) <- 1:9
-#collapse since we don't have an opinion about whether
-#"low many" is better than  "high few"
-alla
-tmp
-all_data_2018 <- all_data_2018 %>% 
-  mutate(combo = as.integer(combo))
+# all_data_2018 %>%
+#   ggplot(aes(fill = combo, color = combo)) +
+#   geom_sf() +
+#   scale_fill_viridis_c() +
+#   scale_color_viridis_c() + 
+#   theme(panel.grid = element_blank(),
+#         axis.text = element_blank(),
+#         panel.background = element_blank()) +
+#   NULL
 
-
-all_data_2018 %>%
-  ggplot(aes(fill = seatsBin, color = seatsBin)) +
-  geom_sf()+
-  scale_fill_viridis_d() +
-  scale_color_viridis_d()
-
+mapview(all_data_2018,zcol="combo")
 ```
 
 Choropleth
