@@ -176,6 +176,12 @@ save(acs_dat,file="data/acs_dat.rdata")
 Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
 
 ```{r}
+load("~/R/NYCPreK/data/schools_2018.rdata")
+load("~/R/NYCPreK/data/alldata2018.rdata")
+load("~/R/NYCPreK/data/acs_dat.rdata")
+load("~/R/NYCPreK/data/geo_nyc_zips.rdata")
+
+
 # aggregate seat count by zip code
 
 sum_seats <- schools_2018 %>% 
@@ -211,7 +217,7 @@ bins<-3
 all_data_2018 <- all_data_2018 %>% 
   mutate(seatsBin=cut2(seatsQuantile,g=bins,levels.mean = TRUE)) %>% 
   mutate(incomeBin=cut2(incomeQuantile,g=bins,levels.mean = TRUE))
-
+#recode numeric bins to descriptions
 levels(all_data_2018$seatsBin) = c("Few","Average","Many")
 levels(all_data_2018$incomeBin) = c("Low","Average","High")
 
@@ -225,35 +231,27 @@ ggplot(all_data_2018,aes(incomeQuantile,seatsQuantile))+geom_point()+geom_smooth
 
 ```
 
-We are used to seeing univarate color maps but here we have two values, seats and income.  How might we code them into one variable. Given the social justice element of the original question, we might create a single scale of good to bad. So, for our purposes, high income and low seats is "good" along with "low income" and "high seats."  Simply taking the difference between income and seats quantiles works.  The largest differences are "good.""
+We are used to seeing univarate color maps but here we have two values, seats and income.  How might we code them into one variable. Given the social justice element of the original question, we might create a single scale of good to bad. So, for our purposes, high income and low seats is "good" along with low income and high seats.  Simply taking the difference between income and seats quantiles works.  The largest differences are "good.""
 
 ```{r}
-#recode numeric bins to descriptions
-# judge what are good and bad combos of income and seats
 #combine income and seats into single factor, ordered
 #by "desirability."
 all_data_2018 <- all_data_2018 %>% 
   mutate(combo = abs(seatsQuantile - incomeQuantile))
 
-# all_data_2018 %>%
-#   ggplot(aes(fill = combo, color = combo)) +
-#   geom_sf() +
-#   scale_fill_viridis_c() +
-#   scale_color_viridis_c() + 
-#   theme(panel.grid = element_blank(),
-#         axis.text = element_blank(),
-#         panel.background = element_blank()) +
-#   NULL
-
-
-mapview(all_data_2018,zcol=c("combo","HouseholdIncome","numSeats"),map.types="OpenStreetMap.BlackAndWhite")
+mapview(all_data_2018,zcol=c("combo"),
+        map.types="OpenStreetMap.BlackAndWhite",
+        layer.name =  "Affirmative Tilts")
 ```
 
-Choropleth
+It is so easy to make great looking maps now!
+
+There are problems with our analytic approach, though.  We have shoehorned two variables, income and seats into one, hard to interpret feature.  I label it "Affirmative Tilts."  Higher values mean more discrepency between the income quantile and the seats quantile which we call "good" but there is no real intuition behind the number.  Second, much of the value of the map is lost. We don't know which zip codes are high or low income, or have plenty or few seats - just that their is a big or small difference between the values.  To really tell the story we need to show two variables simultaneously on the map.
 
 To create a bivariate map we add a new factor that is the character combination of the income bin and the seat count bin.
+
 ```{r}
-desired_combos <- c("Low Few",
+ordered_combos <- c("Low Few",
                     "Low Average",
                     "Low Many",
                     "Average Few",
@@ -264,13 +262,21 @@ desired_combos <- c("Low Few",
                     "High Many")
 
 bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
-bvscale <- scale_fill_manual(name="", values=bvColors, drop=FALSE)
 
-all_data_2018 %>%
-  ggplot(aes(fill = combo, color = combo)) +
-  geom_sf()+
-  scale_fill_viridis_d() +
-  scale_color_viridis_d()
+all_data_2018 <- all_data_2018 %>% 
+  mutate(combo = factor(paste(incomeBin,seatsBin),
+                        levels = ordered_combos))
+
+popup_html<-popupTable(all_data_2018,
+           zcol=c("combo","HouseholdIncome","numSeats","zip"),
+           row.numbers = FALSE) %>% 
+  # this does comma formatting of the HTML string.  Thanks, Stack Overflow!
+  str_replace("(?<=\\d)(?=(\\d\\d\\d)+(?!\\d))",",")
+
+mapview(all_data_2018,zcol=c("combo"),
+        popup = popup_html,
+        map.types="OpenStreetMap.BlackAndWhite")
+
 ```
 
 Bonus! Compare 2016 to 2018
