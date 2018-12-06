@@ -74,6 +74,7 @@ listings <- listings %>% str_split("\\r?\\n") %>% unlist()
 
 Detect record boundaries and turn list of lines into a clean data frame of school listings.
 ```{r}
+
 # regex to extract valid address
 #addresstokens <-"(Address: )['-./0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
 addresstokens <-"(Address: ).+([0-9]{5})"
@@ -244,7 +245,8 @@ all_data_2018 <- all_data_2018 %>%
 #         panel.background = element_blank()) +
 #   NULL
 
-mapview(all_data_2018,zcol="combo")
+
+mapview(all_data_2018,zcol=c("combo","HouseholdIncome","numSeats"),map.types="OpenStreetMap.BlackAndWhite")
 ```
 
 Choropleth
