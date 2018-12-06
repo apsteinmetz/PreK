@@ -11,14 +11,14 @@ library(Hmisc) # cut2 for binning
 #devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
 #library(choroplethrZip)
 #library(acs)  # retrieve census data
-library(stringr)
-library(reshape2)
+#library(stringr)
+#library(reshape2)
 #library(cowplot)
 #library(jpeg)
 library(tidyverse)
 library(tidycensus)
 library(tigris)
-library(sf)
+#library(sf)
 library(pdftools)
 library(mapview)
 
@@ -176,10 +176,10 @@ save(acs_dat,file="data/acs_dat.rdata")
 Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
 
 ```{r}
-load("~/R/NYCPreK/data/schools_2018.rdata")
-load("~/R/NYCPreK/data/alldata2018.rdata")
-load("~/R/NYCPreK/data/acs_dat.rdata")
-load("~/R/NYCPreK/data/geo_nyc_zips.rdata")
+load("data/schools_2018.rdata")
+load("data/alldata2018.rdata")
+load("data/acs_dat.rdata")
+load("data/geo_nyc_zips.rdata")
 
 
 # aggregate seat count by zip code
@@ -241,7 +241,8 @@ all_data_2018 <- all_data_2018 %>%
 
 mapview(all_data_2018,zcol=c("combo"),
         map.types="OpenStreetMap.BlackAndWhite",
-        layer.name =  "Affirmative Tilts")
+        layer.name =  "Affirmative Tilts",
+        popup = NULL)
 ```
 
 It is so easy to make great looking maps now!
@@ -251,32 +252,82 @@ There are problems with our analytic approach, though.  We have shoehorned two v
 To create a bivariate map we add a new factor that is the character combination of the income bin and the seat count bin.
 
 ```{r}
-ordered_combos <- c("Low Few",
-                    "Low Average",
-                    "Low Many",
-                    "Average Few",
-                    "Average Average",
-                    "Average Many",
-                    "High Few",
-                    "High Average",
-                    "High Many")
+ordered_combos <- c("Low, Few",
+                    "Low, Average",
+                    "Low, Many",
+                    "Average, Few",
+                    "Average, Average",
+                    "Average, Many",
+                    "High, Few",
+                    "High, Average",
+                    "High, Many")
 
 bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
 
 all_data_2018 <- all_data_2018 %>% 
-  mutate(combo = factor(paste(incomeBin,seatsBin),
+  mutate(IncAndSeats = factor(paste0(incomeBin,", ",seatsBin),
                         levels = ordered_combos))
 
+# Decide what we want to show when user clicks on a zip code.
+# Do a lot of cleanup of the resulting HTML strings.
 popup_html<-popupTable(all_data_2018,
-           zcol=c("combo","HouseholdIncome","numSeats","zip"),
+           zcol=c("IncAndSeats","HouseholdIncome","kidsUnder3", "seatsPer100Kids","zip"),
            row.numbers = FALSE) %>% 
-  # this does comma formatting of the HTML string.  Thanks, Stack Overflow!
-  str_replace("(?<=\\d)(?=(\\d\\d\\d)+(?!\\d))",",")
+  # this does comma formatting of the HTML string for income.  Thanks, Stack Overflow!
+  str_replace("(?<=\\d)(?=(\\d\\d\\d)+(?!\\d))",",") %>% 
+  #get rid of superfluous features
+  str_replace("<tr><td><\\/td><td><b>geometry.+\\/tr>","") %>% 
+  str_replace("(<td><b>Feature ID.*?\\/tr>)(?=<tr class)","") %>% 
+  # make feature labels nicer looking
+  str_replace("IncAndSeats","Income and Seats") %>%
+  str_replace("HouseholdIncome","Median Income") %>%
+  str_replace("kidsUnder3","Young Children") %>%
+  str_replace("seatsPer100Kids","Seats per 100 Kids") %>%
+  str_replace("zip","ZIP Code") %>%
+  {.}
+  
 
-mapview(all_data_2018,zcol=c("combo"),
+mapview(all_data_2018,zcol=c("IncAndSeats"),
         popup = popup_html,
-        map.types="OpenStreetMap.BlackAndWhite")
+        col.regions = bvColors,
+        map.types="OpenStreetMap.BlackAndWhite",
+        layer.name = "Income and Seats 2018")
 
+
+```
+
+So there's the map.  We can immediately see the problem with the default legend, it's uni-dimensional nature of the legend even though we have a bi-variate color scheme.
+
+Here is where the interesting hack comes in.  No mapping packages I am aware of have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R in `mapview`?  Yes!  The `mapview` package allows for insertion of images.
+
+## Create the custom legend.
+To create the legend we 'simply' create a heat map of the 3x3 bins in the map and label the axes appropriately and save the image.  Then, using `addlogo(), shove it into a corner of the map.
+```{r message=FALSE}
+
+#first create a legend plot
+legendGoal = melt(matrix(1:9, nrow = 3))
+lg <- ggplot(legendGoal, aes(Var2, Var1, fill = as.factor(value))) + geom_tile()
+lg <- lg + scale_fill_manual(name = "", values = bvColors)
+lg <- lg + theme(legend.position = "none")
+lg <- lg + theme(axis.title.x = element_text(size = rel(0.5), color = bvColors[3])) + 
+  xlab(" More Income -->")
+lg <- lg + theme(axis.title.y = element_text(size = rel(0.5), color = bvColors[3])) + 
+  ylab("   More Seats -->")
+lg <- lg + theme(axis.text = element_blank())
+lg <- lg + theme(line = element_blank())
+ggsave("img/bv_legend.png",lg,width = 20,height=20,units="mm")
+
+```
+![](img/bv_legend.png)
+
+```{r}
+mv <- mapview(all_data_2018,zcol=c("IncAndSeats"),
+        popup = popup_html,
+        col.regions = bvColors,
+        map.types="OpenStreetMap.BlackAndWhite",
+        layer.name = "Income and Seats",
+        legend = FALSE)
+mv
 ```
 
 Bonus! Compare 2016 to 2018
@@ -292,17 +343,19 @@ sumSeats2018 <- schools_2018 %>%
 
 
 load("data/alldata2016.rdata")
-
+all_data_2016 <-allData
+rm(allData)
 #2016 data doesn't have boroughs so map zips to boroughs from 2018 data
 sumSeats2016<-schools_2018 %>% select(borough,zip) %>% 
   unique() %>% 
-  right_join(alldata2016,by=c("borough","zip")) %>%
+  right_join(all_data_2016,by=c("zip")) %>%
   select(borough,schools,numSeats) %>% 
   group_by(borough) %>% 
   summarise(schools = sum(schools), 
             numSeats = sum(numSeats, na.rm = TRUE)) %>% 
   mutate(year=as.integer(2016))
-sumSeats <- bind_rows(sumSeats2016,sumSeats2018 %>% mutate(year=as.factor(year)))
+
+sumSeats <- bind_rows(sumSeats2016,sumSeats2018) %>% mutate(year=as.factor(year))
 ggplot(sumSeats,aes(borough,schools,fill=year)) + 
   geom_col(position = "dodge") + 
   scale_y_continuous(labels=scales::comma) + 
@@ -320,5 +373,39 @@ ggplot(sumSeats,aes(borough,numSeats,fill=year)) +
        caption = "source: nyc.gov",
        x = "Borough",
        y = "Number of Seats")
+
+```
+
+```{r}
+#add spatial geometry to 2016 data
+all_data_2016 <- all_data_2018 %>% 
+  select(zip,geometry) %>% 
+  left_join(alldata_2016) %>% 
+  na.omit() %>% 
+  mutate(IncAndSeats = factor(paste0(incomeBin,", ",seatsBin),
+                        levels = ordered_combos))
+
+
+mv_2016 <- mapview(all_data_2016,zcol=c("IncAndSeats"),
+        popup = popup_html,
+        col.regions = bvColors,
+        map.types="OpenStreetMap.BlackAndWhite",
+        layer.name = "Income and Seats 2016",
+        legend = FALSE)
+
+all_data_2018 <- all_data_2018 %>% mutate(seatsChange16to18=numSeats - all_data_2016$numSeats)
+
+mv_delta<- mapview(all_data_2018,zcol=c("seatsChange16to18"),
+        popup = popup_html,
+        col.regions = viridis::plasma(10),
+        map.types="OpenStreetMap.BlackAndWhite",
+        layer.name = "Change in Seats 2016-2016")
+mv_delta
+mv_all <- mv+mv_2016+mv_delta 
+
+#mv_all %>%   leaflet::addLayersControl(overlayGroups=c("Income and Seats 2016",
+#                           "Income and Seats 2018",
+#                           "Change in Seats 2016-2016"))
+
 ```
 
