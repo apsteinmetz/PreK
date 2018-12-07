@@ -4,7 +4,7 @@ output: html_notebook
 ---
 # Load Libraries
 
-```{r message=FALSE, warning=FALSE}
+```{r message=TRUE, warning=TRUE}
 library(Hmisc) # cut2 for binning
 #library(choroplethr)
 #not on CRAN. Do an install the first time
@@ -12,13 +12,13 @@ library(Hmisc) # cut2 for binning
 #library(choroplethrZip)
 #library(acs)  # retrieve census data
 #library(stringr)
-#library(reshape2)
+library(reshape2)
 #library(cowplot)
 #library(jpeg)
 library(tidyverse)
 library(tidycensus)
 library(tigris)
-#library(sf)
+library(sf)
 library(pdftools)
 library(mapview)
 
@@ -119,8 +119,8 @@ Income, population, population of school age children and census zip code geomet
 # I keep my census api key in a system variable. This adds it to the r environment 
 # with a label that tidycensus expects.
 #if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) 
-  
-census_api_key(Sys.getenv("CENSUS_KEY"),overwrite = TRUE)
+
+census_api_key(Sys.getenv("CENSUS_API_KEY"))
 
 options(tigris_use_cache = TRUE)
 
@@ -172,7 +172,7 @@ acs_dat<- acs_raw %>%
 
 save(acs_dat,file="data/acs_dat.rdata")
 ```
-
+# Get to work
 Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
 
 ```{r}
@@ -327,7 +327,9 @@ mv <- mapview(all_data_2018,zcol=c("IncAndSeats"),
         map.types="OpenStreetMap.BlackAndWhite",
         layer.name = "Income and Seats",
         legend = FALSE)
-mv
+
+source("my_addLogo.r")
+mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
 ```
 
 Bonus! Compare 2016 to 2018
