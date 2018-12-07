@@ -1,6 +1,8 @@
 ---
 title: "Pre-K 2018"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 # Load Libraries
 
@@ -20,6 +22,7 @@ library(tidycensus)
 library(tigris)
 library(sf)
 library(pdftools)
+#devtools::install_github("r-spatial/mapview@develop")
 library(mapview)
 
 ```
@@ -120,7 +123,7 @@ Income, population, population of school age children and census zip code geomet
 # with a label that tidycensus expects.
 #if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) 
 
-census_api_key(Sys.getenv("CENSUS_API_KEY"))
+#census_api_key(Sys.getenv("CENSUS_API_KEY"))
 
 options(tigris_use_cache = TRUE)
 
@@ -328,8 +331,9 @@ mv <- mapview(all_data_2018,zcol=c("IncAndSeats"),
         layer.name = "Income and Seats",
         legend = FALSE)
 
-source("my_addLogo.r")
-mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
+#source("my_addLogo.r")
+#mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
+mv %>% addLogo("img/bv_legend.png",src = "local",position = "topleft",width=100,height=100)
 ```
 
 Bonus! Compare 2016 to 2018
@@ -382,7 +386,7 @@ ggplot(sumSeats,aes(borough,numSeats,fill=year)) +
 #add spatial geometry to 2016 data
 all_data_2016 <- all_data_2018 %>% 
   select(zip,geometry) %>% 
-  left_join(alldata_2016) %>% 
+  left_join(all_data_2016) %>% 
   na.omit() %>% 
   mutate(IncAndSeats = factor(paste0(incomeBin,", ",seatsBin),
                         levels = ordered_combos))
@@ -402,7 +406,6 @@ mv_delta<- mapview(all_data_2018,zcol=c("seatsChange16to18"),
         col.regions = viridis::plasma(10),
         map.types="OpenStreetMap.BlackAndWhite",
         layer.name = "Change in Seats 2016-2016")
-mv_delta
 mv_all <- mv+mv_2016+mv_delta 
 
 #mv_all %>%   leaflet::addLayersControl(overlayGroups=c("Income and Seats 2016",
