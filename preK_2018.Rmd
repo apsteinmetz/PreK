@@ -1,12 +1,10 @@
 ---
 title: "Pre-K 2018"
-output:
-  html_document:
-    df_print: paged
+output:  html_document
 ---
 # Load Libraries
 
-```{r message=TRUE, warning=TRUE}
+```{r message=FALSE, warning=FALSE}
 library(Hmisc) # cut2 for binning
 #library(choroplethr)
 #not on CRAN. Do an install the first time
@@ -57,123 +55,128 @@ if (!is.na(match(FALSE,file.exists(dests)))) {
 
 Extract text from PDFs.  Select only those pages that are directory listings and split into lines.
 ```{r}
-# extract and combine text from PDFs
-listings <- NULL
-for (i in 1:length(dests)) {
-  print(dests[i])
-  txt <- suppressMessages(pdf_text(dests[i]))
-  # "Playspace:" is marker for actual directory listing of pre-k schools on that page
-  # Discard other pages
-  txt <- txt[str_detect(txt,"Playspace:")]
-  txt <- txt[-1] #first instance is an example page. discard.
-  listings <- append(listings,txt)
-  # file.remove(dests[i])
+if (!file.exists("data/schools_2018.rdata")){
+  # extract and combine text from PDFs
+  listings <- NULL
+  for (i in 1:length(dests)) {
+    print(dests[i])
+    txt <- suppressMessages(pdf_text(dests[i]))
+    # "Playspace:" is marker for actual directory listing of pre-k schools on that page
+    # Discard other pages
+    txt <- txt[str_detect(txt,"Playspace:")]
+    txt <- txt[-1] #first instance is an example page. discard.
+    listings <- append(listings,txt)
+    # file.remove(dests[i])
+  }
+  
+  #text is in one page per item
+  #divide listings into separate lines
+  listings <- listings %>% str_split("\\r?\\n") %>% unlist()
 }
-
-#text is in one page per item
-#divide listings into separate lines
-listings <- listings %>% str_split("\\r?\\n") %>% unlist()
 ```
 
 Detect record boundaries and turn list of lines into a clean data frame of school listings.
 ```{r}
-
-# regex to extract valid address
-#addresstokens <-"(Address: )['-./0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
-addresstokens <-"(Address: ).+([0-9]{5})"
-#use lines containing address as anchor to mark record boundaries
-lines_address<-grep(addresstokens,listings)
-record_start<-lines_address-1
-record_end<-(lines_address-2)[-1] %>% append(length(listings))
-
-#----------------------------
-#workhorse function to create a record with all relevant info about a school
-create_record <- function(rec_index){
-  #rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
-  rec <- listings[record_start[rec_index]:record_end[rec_index]]
-  name <- str_extract(rec[1],"(.+)(?=\\|)") %>% str_trim()
-  district <- str_extract(rec[1],"(?<=\\| )[0-9]{2}") %>% str_trim() %>% as.integer()
-  address <- str_extract(rec[2],addresstokens)%>% str_remove("Address: ")
-  zip <- str_extract(address,"[0-9]{5}$")
-  address <- str_remove(address," [0-9]{5}$")
-  borough <- address %>% str_extract("[A-z]+(?= NY)")
-  # the next two searches should be tolerant of not knowing line the field is on
-  day_length <- str_extract(rec,"([A-Za-z]+)(?=-Day)")  %>% na.omit() %>% as.character() %>% .[1]
-  seats = str_extract(rec,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.integer() %>% .[1]
-  return(data_frame(name=name,
-                    address=address,
-                    zip=zip,
-                    borough = borough,
-                    district = district,
-                    seats = seats,
-                    day_length=day_length))
+if (!file.exists("data/schools_2018.rdata")){
+  # regex to extract valid address
+  #addresstokens <-"(Address: )['-./0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
+  addresstokens <-"(Address: ).+([0-9]{5})"
+  #use lines containing address as anchor to mark record boundaries
+  lines_address<-grep(addresstokens,listings)
+  record_start<-lines_address-1
+  record_end<-(lines_address-2)[-1] %>% append(length(listings))
   
+  #----------------------------
+  #workhorse function to create a record with all relevant info about a school
+  create_record <- function(rec_index){
+    #rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
+    rec <- listings[record_start[rec_index]:record_end[rec_index]]
+    name <- str_extract(rec[1],"(.+)(?=\\|)") %>% str_trim()
+    district <- str_extract(rec[1],"(?<=\\| )[0-9]{2}") %>% str_trim() %>% as.integer()
+    address <- str_extract(rec[2],addresstokens)%>% str_remove("Address: ")
+    zip <- str_extract(address,"[0-9]{5}$")
+    address <- str_remove(address," [0-9]{5}$")
+    borough <- address %>% str_extract("[A-z]+(?= NY)")
+    # the next two searches should be tolerant of not knowing line the field is on
+    day_length <- str_extract(rec,"([A-Za-z]+)(?=-Day)")  %>% na.omit() %>% as.character() %>% .[1]
+    seats = str_extract(rec,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.integer() %>% .[1]
+    return(data_frame(name=name,
+                      address=address,
+                      zip=zip,
+                      borough = borough,
+                      district = district,
+                      seats = seats,
+                      day_length=day_length))
+    
+  }
+  #----------------------------
+  
+  #create data frame with a line for each school
+  schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
+  schools_2018 <- schools_2018 %>% mutate(borough = ifelse(borough=="Island","Staten",borough))
+  save(schools_2018,file="data/schools_2018.rdata")
 }
-#----------------------------
-
-#create data frame with a line for each school
-schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
-schools_2018 <- schools_2018 %>% mutate(borough = ifelse(borough=="Island","Staten",borough))
-save(schools_2018,file="data/schools_2018.rdata")
 ```
 Get census data
 Income, population, population of school age children and census zip code geometries.
-```{r message=FALSE, warning=FALSE}
-# I keep my census api key in a system variable. This adds it to the r environment 
-# with a label that tidycensus expects.
-#if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) 
-
-#census_api_key(Sys.getenv("CENSUS_API_KEY"))
-
-options(tigris_use_cache = TRUE)
-
-# get zip code boundaries from Tigris
-geo_nyc_zips_raw <-zctas(cb = FALSE, 
-                       starts_with = c("10","11"),
-                       state = "NY",
-                       year = 2010,
-                       class = "sf")
-
-geo_nyc_zips <- geo_nyc_zips_raw %>% rename(zip= ZCTA5CE10) %>% select(zip,geometry)
-
-#The returned set of geometries includes long island and Westchester so
-#crop the bounding box to get a better sized map.
-nyc_box<-c(xmin=-74.5,ymin=40.5,xmax=-73.6,ymax=41.0)
-geo_nyc_zips <-geo_nyc_zips %>%  st_crop(nyc_box)
-save(geo_nyc_zips,file="data/geo_nyc_zips.rdata")
-# FYI if you want to see all the available acs tables from the census bureau
-# v15 <- load_tvariables(2016, "acs5", cache = TRUE)
-# View(v15)
-
-acs_table_pop <- "B01003_001" # total population
-acs_table_kid <- "B05009_002" # children under 6
-acs_table_inc <- "B19013_001" # median income, last 12 months
-# NYC county codes
-#nyc_fips = c("085","005", "047", "061", "081") # use as "county"
-#nyc_geoids = c("36085","36005", "36047", "36061", "36081")
-nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes from USPS web site
-
-# we can only use the zcta (zip code) geography if we fetch the whole country!
- acs_raw <- get_acs(geography = "zcta",
-                    variables = c(HouseholdIncome = acs_table_inc,
-                            kidsUnder3 = acs_table_kid,
-                            totPop = acs_table_pop))
-```
 
 Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the map data for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names.
-```{r}
-# filter for just NYC zip codes
-# and make the data wide
-acs_dat<- acs_raw %>% 
-  rename(zip=GEOID) %>% 
-  right_join(nyc_zips) %>% 
-  select(zip,variable,estimate) %>% 
-  filter(!is.na(variable)) %>% 
-  spread(variable,estimate) %>% 
-  filter(!is.na(HouseholdIncome)) %>% 
-  {.}
 
-save(acs_dat,file="data/acs_dat.rdata")
+```{r message=FALSE, warning=FALSE}
+if (!file.exists("data/schools_2018.rdata")){
+  
+  # I keep my census api key in a system variable. This adds it to the r environment 
+  # with a label that tidycensus expects.
+  #if (nchar(Sys.getenv("CENSUS_API_KEY"))==0) 
+  
+  #census_api_key(Sys.getenv("CENSUS_API_KEY"))
+  
+  options(tigris_use_cache = TRUE)
+  
+  # get zip code boundaries from Tigris
+  geo_nyc_zips_raw <-zctas(cb = FALSE, 
+                           starts_with = c("10","11"),
+                           state = "NY",
+                           year = 2010,
+                           class = "sf")
+  
+  geo_nyc_zips <- geo_nyc_zips_raw %>% rename(zip= ZCTA5CE10) %>% select(zip,geometry)
+  
+  #The returned set of geometries includes long island and Westchester so
+  #crop the bounding box to get a better sized map.
+  nyc_box<-c(xmin=-74.5,ymin=40.5,xmax=-73.6,ymax=41.0)
+  geo_nyc_zips <-geo_nyc_zips %>%  st_crop(nyc_box)
+  save(geo_nyc_zips,file="data/geo_nyc_zips.rdata")
+  # FYI if you want to see all the available acs tables from the census bureau
+  # v15 <- load_tvariables(2016, "acs5", cache = TRUE)
+  # View(v15)
+  
+  acs_table_pop <- "B01003_001" # total population
+  acs_table_kid <- "B05009_002" # children under 6
+  acs_table_inc <- "B19013_001" # median income, last 12 months
+  # NYC county codes
+  #nyc_fips = c("085","005", "047", "061", "081") # use as "county"
+  #nyc_geoids = c("36085","36005", "36047", "36061", "36081")
+  nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes from USPS web site
+  
+  # we can only use the zcta (zip code) geography if we fetch the whole country!
+  acs_raw <- get_acs(geography = "zcta",
+                     variables = c(HouseholdIncome = acs_table_inc,
+                                   kidsUnder3 = acs_table_kid,
+                                   totPop = acs_table_pop))
+  # filter for just NYC zip codes
+  # and make the data wide
+  acs_dat<- acs_raw %>% 
+    rename(zip=GEOID) %>% 
+    right_join(nyc_zips) %>% 
+    select(zip,variable,estimate) %>% 
+    filter(!is.na(variable)) %>% 
+    spread(variable,estimate) %>% 
+    filter(!is.na(HouseholdIncome)) %>% 
+    {.}
+  
+  save(acs_dat,file="data/acs_dat.rdata")
+}
 ```
 # Get to work
 Now we have everything we need to make some maps: the schools data from the city, the population and income data from the census and the map coordinates for all NYC zip codes. Let's bring them together.
@@ -321,8 +324,8 @@ lg <- lg + theme(line = element_blank())
 ggsave("img/bv_legend.png",lg,width = 20,height=20,units="mm")
 
 ```
-![](img/bv_legend.png)
 
+Now render the map.
 ```{r}
 mv <- mapview(all_data_2018,zcol=c("IncAndSeats"),
         popup = popup_html,
@@ -333,7 +336,8 @@ mv <- mapview(all_data_2018,zcol=c("IncAndSeats"),
 
 #source("my_addLogo.r")
 #mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
-mv %>% addLogo("img/bv_legend.png",src = "local",position = "topleft",width=100,height=100)
+mv <-mv %>% addLogo("img/bv_legend.png",src = "local",position = "topleft",width=100,height=100,offset.x = 70)
+mv
 ```
 
 Bonus! Compare 2016 to 2018
@@ -397,16 +401,20 @@ mv_2016 <- mapview(all_data_2016,zcol=c("IncAndSeats"),
         col.regions = bvColors,
         map.types="OpenStreetMap.BlackAndWhite",
         layer.name = "Income and Seats 2016",
-        legend = FALSE)
+        legend = FALSE) %>% 
+    addLogo("img/bv_legend.png",src = "local",position = "topleft",width=100,height=100,offset.x = 70) %>%
+    {.}
+
 
 all_data_2018 <- all_data_2018 %>% mutate(seatsChange16to18=numSeats - all_data_2016$numSeats)
 
 mv_delta<- mapview(all_data_2018,zcol=c("seatsChange16to18"),
-        popup = popup_html,
-        col.regions = viridis::plasma(10),
-        map.types="OpenStreetMap.BlackAndWhite",
-        layer.name = "Change in Seats 2016-2016")
-mv_all <- mv+mv_2016+mv_delta 
+                   popup = popup_html,
+                   col.regions = viridis::plasma(10),
+                   map.types="OpenStreetMap.BlackAndWhite",
+                   layer.name = "Change in Seats 2016-2016") %>% 
+  {.}
+
 
 #mv_all %>%   leaflet::addLayersControl(overlayGroups=c("Income and Seats 2016",
 #                           "Income and Seats 2018",
@@ -414,3 +422,12 @@ mv_all <- mv+mv_2016+mv_delta
 
 ```
 
+Try all this in leaflet
+```{r}
+library(leaflet)
+all_data_2018 %>% 
+  leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap.BlackAndWhite) %>% 
+  addPolygons()
+
+```
