@@ -293,7 +293,7 @@ popup_html<-popupTable(all_data_2018,
   {.}
   
 
-mapview(all_data_2018,zcol=c("IncAndSeats"),
+mv <-mapview(all_data_2018,zcol=c("IncAndSeats"),
         popup = popup_html,
         col.regions = bvColors,
         map.types="OpenStreetMap.BlackAndWhite",
@@ -334,9 +334,8 @@ mv <- mapview(all_data_2018,zcol=c("IncAndSeats"),
         layer.name = "Income and Seats",
         legend = FALSE)
 
-#source("my_addLogo.r")
-#mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
-mv <-mv %>% addLogo("img/bv_legend.png",src = "local",position = "topleft",width=100,height=100,offset.x = 70)
+#mv <-mv %>% addLogo("img/bv_legend.png",src = "local",
+#                    position = "topleft",width=100,height=100,offset.x = 70)
 mv
 ```
 
@@ -352,7 +351,7 @@ sumSeats2018 <- schools_2018 %>%
   mutate(year=as.integer(2018))
 
 
-load("data/alldata2016.rdata")
+load("data/alldata2016.rdata") 
 all_data_2016 <-allData
 rm(allData)
 #2016 data doesn't have boroughs so map zips to boroughs from 2018 data
@@ -387,6 +386,25 @@ ggplot(sumSeats,aes(borough,numSeats,fill=year)) +
 ```
 
 ```{r}
+load("data/alldata2016.rdata") 
+all_data_2016 <-allData
+rm(allData)
+
+seats_delta<- all_data_2018 %>% 
+  select(zip,geometry,numSeats) %>% 
+  rename(numSeats_2018=numSeats) %>% 
+  left_join(all_data_2016) %>% 
+  na.omit() %>% 
+  rename(numSeats_2016=numSeats) %>% 
+  mutate(zip=zip,
+         seatsPctChange16to18=round((numSeats_2018/numSeats_2016-1)*100,0)) %>% 
+  select(zip,numSeats_2016,numSeats_2018,seatsPctChange16to18) %>% 
+  {.}
+
+# chop down huge percentages
+seats_delta <- seats_delta %>% 
+  mutate(seatsPctChange16to18 = ifelse(seatsPctChange16to18>200,200,seatsPctChange16to18))
+
 #add spatial geometry to 2016 data
 all_data_2016 <- all_data_2018 %>% 
   select(zip,geometry) %>% 
@@ -396,23 +414,40 @@ all_data_2016 <- all_data_2018 %>%
                         levels = ordered_combos))
 
 
+popup_html_2016<-popupTable(all_data_2016,
+           zcol=c("IncAndSeats","HouseholdIncome","kidsUnder3", "seatsPer100Kids","zip"),
+           row.numbers = FALSE) %>% 
+  # this does comma formatting of the HTML string for income.  Thanks, Stack Overflow!
+  str_replace("(?<=\\d)(?=(\\d\\d\\d)+(?!\\d))",",") %>% 
+  #get rid of superfluous features
+  str_replace("<tr><td><\\/td><td><b>geometry.+\\/tr>","") %>% 
+  str_replace("(<td><b>Feature ID.*?\\/tr>)(?=<tr class)","") %>% 
+  # make feature labels nicer looking
+  str_replace("IncAndSeats","Income and Seats") %>%
+  str_replace("HouseholdIncome","Median Income") %>%
+  str_replace("kidsUnder3","Young Children") %>%
+  str_replace("seatsPer100Kids","Seats per 100 Kids") %>%
+  str_replace("zip","ZIP Code") %>%
+  {.}
+
 mv_2016 <- mapview(all_data_2016,zcol=c("IncAndSeats"),
-        popup = popup_html,
+        popup = popup_html_2016,
         col.regions = bvColors,
         map.types="OpenStreetMap.BlackAndWhite",
         layer.name = "Income and Seats 2016",
         legend = FALSE) %>% 
-    addLogo("img/bv_legend.png",src = "local",position = "topleft",width=100,height=100,offset.x = 70) %>%
+    #addLogo("img/bv_legend.png",src = "local",
+    #        position = "topleft",width=100,height=100,offset.x = 70) %>%
     {.}
 
 
-all_data_2018 <- all_data_2018 %>% mutate(seatsChange16to18=numSeats - all_data_2016$numSeats)
+  
+  
 
-mv_delta<- mapview(all_data_2018,zcol=c("seatsChange16to18"),
+mv_delta<- mapview(seats_delta,zcol=c("seatsPctChange16to18"),
                    popup = popup_html,
-                   col.regions = viridis::plasma(10),
                    map.types="OpenStreetMap.BlackAndWhite",
-                   layer.name = "Change in Seats 2016-2016") %>% 
+                   layer.name = "Change in Seats\n 2016-2016") %>% 
   {.}
 
 
@@ -420,14 +455,60 @@ mv_delta<- mapview(all_data_2018,zcol=c("seatsChange16to18"),
 #                           "Income and Seats 2018",
 #                           "Change in Seats 2016-2016"))
 
+
 ```
 
 Try all this in leaflet
 ```{r}
+# This largely follows the leaflet tutorial at
+# https://rstudio.github.io/leaflet/choropleths.html
+
 library(leaflet)
+
+pal <- colorFactor(bvColors, domain = all_data_2018$IncAndSeats)
+
+popup_html<-popupTable(all_data_2018,
+           zcol=c("IncAndSeats","HouseholdIncome","kidsUnder3", "seatsPer100Kids","zip"),
+           row.numbers = FALSE) %>% 
+  # this does comma formatting of the HTML string for income.  Thanks, Stack Overflow!
+  str_replace("(?<=\\d)(?=(\\d\\d\\d)+(?!\\d))",",") %>% 
+  #get rid of superfluous features
+  str_replace("<tr><td><\\/td><td><b>geometry.+\\/tr>","") %>% 
+  str_replace("(<td><b>Feature ID.*?\\/tr>)(?=<tr class)","") %>% 
+  # make feature labels nicer looking
+  str_replace("IncAndSeats","Income and Seats") %>%
+  str_replace("HouseholdIncome","Median Income") %>%
+  str_replace("kidsUnder3","Young Children") %>%
+  str_replace("seatsPer100Kids","Seats per 100 Kids") %>%
+  str_replace("zip","ZIP Code") %>%
+  lapply(htmltools::HTML) %>% 
+  {.}
+
+popup_html <- with(all_data_2018,
+                   paste0("<strong>ZIP Code :",zip,
+                          "<br/>Income and Seats: ",IncAndSeats, "</strong>",
+                          "<br/>Median Income: $",format(HouseholdIncome,big.mark = ","),
+                          "<br/>Young Children: ",format(kidsUnder3,big.mark = ","),
+                          "<br/>Seats per 100 Kids: ",seatsPer100Kids)) %>% 
+  lapply(htmltools::HTML)
+
 all_data_2018 %>% 
   leaflet() %>% 
   addProviderTiles(providers$OpenStreetMap.BlackAndWhite) %>% 
-  addPolygons()
+  addPolygons(
+  fillColor = ~pal(IncAndSeats),
+  weight = 1,
+  opacity = 1,
+  color = "black",
+  dashArray = "",
+  fillOpacity = 0.7,
+  highlight = highlightOptions(
+    weight = 5,
+    color = "black",
+    dashArray = "",
+    fillOpacity = 0.7,
+    bringToFront = TRUE),
+  label = popup_html
+  )
 
 ```
