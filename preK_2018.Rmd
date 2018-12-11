@@ -458,7 +458,7 @@ mv_delta<- mapview(seats_delta,zcol=c("seatsPctChange16to18"),
 
 ```
 
-Try all this in leaflet
+Try all this in leaflet.
 ```{r}
 # This largely follows the leaflet tutorial at
 # https://rstudio.github.io/leaflet/choropleths.html
@@ -467,41 +467,23 @@ library(leaflet)
 
 pal <- colorFactor(bvColors, domain = all_data_2018$IncAndSeats)
 
-popup_html<-popupTable(all_data_2018,
-           zcol=c("IncAndSeats","HouseholdIncome","kidsUnder3", "seatsPer100Kids","zip"),
-           row.numbers = FALSE) %>% 
-  # this does comma formatting of the HTML string for income.  Thanks, Stack Overflow!
-  str_replace("(?<=\\d)(?=(\\d\\d\\d)+(?!\\d))",",") %>% 
-  #get rid of superfluous features
-  str_replace("<tr><td><\\/td><td><b>geometry.+\\/tr>","") %>% 
-  str_replace("(<td><b>Feature ID.*?\\/tr>)(?=<tr class)","") %>% 
-  # make feature labels nicer looking
-  str_replace("IncAndSeats","Income and Seats") %>%
-  str_replace("HouseholdIncome","Median Income") %>%
-  str_replace("kidsUnder3","Young Children") %>%
-  str_replace("seatsPer100Kids","Seats per 100 Kids") %>%
-  str_replace("zip","ZIP Code") %>%
-  lapply(htmltools::HTML) %>% 
-  {.}
-
 #convert an image file to base 64 to embed raw data in HTML
 img_html <- function(img,height=100,width=100,alpha = 1){
   style <- paste0('style="opacity:',
                   alpha,
                   ';filter:alpha(opacity=',
                   alpha * 100, ');"')
-txt <- RCurl::base64Encode(readBin(img, "raw", file.info(img)[1, "size"]), "txt")
-
-# Create inline image, save & open html file in browser 
-#html <- sprintf('<html><body><img src="data:image/png;base64,%s"></body></html>', txt)
-html<- paste0("<html><body<img src='data:image/png;base64'",
-              txt,
-              ", width=", width,",",
-              "height=", height,",",
-              style,
-              "</body></html>") %>% 
-  htmltools::HTML()
-
+  img_raw <- knitr::image_uri(img) %>% htmltools::HTML()
+  # Create inline image, save & open html file in browser 
+  #html <- sprintf('<html><body><img src="data:image/png;base64,%s"></body></html>', txt)
+  legend_html<- paste0("<html><body<img src=",
+                       img_raw,
+                       ", width=", width,",",
+                       "height=", height,",",
+                       style,
+                       "</body></html>") %>% 
+    htmltools::HTML()
+  
 }
 
 
