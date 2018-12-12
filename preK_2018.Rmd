@@ -273,6 +273,10 @@ bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8"
 all_data_2018 <- all_data_2018 %>% 
   mutate(IncAndSeats = factor(paste0(incomeBin,", ",seatsBin),
                         levels = ordered_combos))
+```
+Begin choropleth maps
+Start with mapview package
+```{r}
 
 # Decide what we want to show when user clicks on a zip code.
 # Do a lot of cleanup of the resulting HTML strings.
@@ -299,7 +303,7 @@ mv <-mapview(all_data_2018,zcol=c("IncAndSeats"),
         map.types="OpenStreetMap.BlackAndWhite",
         layer.name = "Income and Seats 2018")
 
-
+mv
 ```
 
 So there's the map.  We can immediately see the problem with the default legend, it's uni-dimensional nature of the legend even though we have a bi-variate color scheme.
@@ -334,8 +338,8 @@ mv <- mapview(all_data_2018,zcol=c("IncAndSeats"),
         layer.name = "Income and Seats",
         legend = FALSE)
 
-#mv <-mv %>% addLogo("img/bv_legend.png",src = "local",
-#                    position = "topleft",width=100,height=100,offset.x = 70)
+mv <-mv %>% addLogo("img/bv_legend.png",src = "local",
+                    position = "topleft",width=100,height=100,offset.x = 70)
 mv
 ```
 
@@ -459,16 +463,12 @@ mv_delta<- mapview(seats_delta,zcol=c("seatsPctChange16to18"),
 ```
 
 Try all this in leaflet.
+
+First create a handy helper function.  This will turn any image into inline html code that is easy to add to any of the leaflet controls.  We will use it to make our bivariate legend.  This is a very useful and reusable function.
 ```{r}
-# This largely follows the leaflet tutorial at
-# https://rstudio.github.io/leaflet/choropleths.html
-
-library(leaflet)
-
-pal <- colorFactor(bvColors, domain = all_data_2018$IncAndSeats)
-
 # create HTML embedding a raw image
 img_html <- function(img,height=100,width=100,alpha = 1){
+  # style has no effect. Why?
   style <- paste0('style="opacity:',
                   alpha,
                   ';filter:alpha(opacity=',
@@ -481,25 +481,29 @@ img_html <- function(img,height=100,width=100,alpha = 1){
                        'height=', height,',',
                        style,'>') %>% 
     htmltools::HTML()
-  
 }
+```
 
 
+```{r}
+# This largely follows the leaflet tutorial at
+# https://rstudio.github.io/leaflet/choropleths.html
 
+library(leaflet)
+
+pal <- colorFactor(bvColors, domain = all_data_2018$IncAndSeats)
+
+
+# create the html for the data that will pop up when the mouse hovers over each zip code
 popup_html <- with(
   all_data_2018,
   paste0(
-    "<strong>ZIP Code :",
-    zip,
-    "<br/>Income and Seats:",
-    IncAndSeats,
-    "</strong>",
-    "<br/>Median Income: $",
-    format(HouseholdIncome, big.mark = ","),
-    "<br/>Young Children: ",
-    format(kidsUnder3, big.mark = ","),
-    "<br/>Seats per 100 Kids: ",
-    seatsPer100Kids
+    "ZIP Code :","<strong>",zip,"</strong>",
+    "<br/>Income and Seats:","<strong>",IncAndSeats,"</strong>",
+    "<br/>Median Income: $","<strong>",format(HouseholdIncome, big.mark = ","),"</strong>",
+    "<br/>Young Children: ","<strong>",format(kidsUnder3, big.mark = ","),"</strong>",
+    "<br/>Seats per 100 Kids: ","<strong>",seatsPer100Kids,"</strong>"
+
   )
 ) %>%
   lapply(htmltools::HTML)
@@ -523,7 +527,9 @@ all_data_2018 %>%
     bringToFront = TRUE),
   label = popup_html
   ) %>% 
-  addControl(img_html("img/bv_legend.png",alpha=0.9),position="topleft")
+    addLegend(pal = pal, values = ~IncAndSeats, opacity = 0.7, title = NULL,
+    position = "bottomright") %>% 
+  addControl(img_html("img/bv_legend.png",alpha=0.1),position="topleft")
 
 
 ```
