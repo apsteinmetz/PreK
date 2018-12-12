@@ -467,20 +467,20 @@ library(leaflet)
 
 pal <- colorFactor(bvColors, domain = all_data_2018$IncAndSeats)
 
-#convert an image file to base 64 to embed raw data in HTML
+# create HTML embedding a raw image
 img_html <- function(img,height=100,width=100,alpha = 1){
   style <- paste0('style="opacity:',
                   alpha,
                   ';filter:alpha(opacity=',
-                  alpha * 100, ');"')
-  img_raw <- knitr::image_uri(img) %>% htmltools::HTML()
-  # Create inline image, save & open html file in browser 
-  #html <- sprintf('<html><body><img src="data:image/png;base64,%s"></body></html>', txt)
+                  alpha * 100, ')"')
+  #convert an image file to base 64 to embed raw data in HTML
+  img_raw <- knitr::image_uri(img)
   legend_html<- paste0('<img src="',
-                       img_raw,
-                       ", width=", width,",",
-                       "height=", height,",",
-                       style)
+                       img_raw,'"',
+                       ', width=', width,',',
+                       'height=', height,',',
+                       style,'>') %>% 
+    htmltools::HTML()
   
 }
 
@@ -523,7 +523,7 @@ all_data_2018 %>%
     bringToFront = TRUE),
   label = popup_html
   ) %>% 
-  addControl(img_html("img/bv_legend.png"),position="topleft")
+  addControl(img_html("img/bv_legend.png",alpha=0.9),position="topleft")
 
 
 ```
