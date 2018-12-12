@@ -476,23 +476,32 @@ img_html <- function(img,height=100,width=100,alpha = 1){
   img_raw <- knitr::image_uri(img) %>% htmltools::HTML()
   # Create inline image, save & open html file in browser 
   #html <- sprintf('<html><body><img src="data:image/png;base64,%s"></body></html>', txt)
-  legend_html<- paste0("<html><body<img src=",
+  legend_html<- paste0('<img src="',
                        img_raw,
                        ", width=", width,",",
                        "height=", height,",",
-                       style,
-                       "</body></html>") %>% 
-    htmltools::HTML()
+                       style)
   
 }
 
 
-popup_html <- with(all_data_2018,
-                   paste0("<strong>ZIP Code :",zip,
-                          "<br/>Income and Seats: ",IncAndSeats, "</strong>",
-                          "<br/>Median Income: $",format(HouseholdIncome,big.mark = ","),
-                          "<br/>Young Children: ",format(kidsUnder3,big.mark = ","),
-                          "<br/>Seats per 100 Kids: ",seatsPer100Kids)) %>% 
+
+popup_html <- with(
+  all_data_2018,
+  paste0(
+    "<strong>ZIP Code :",
+    zip,
+    "<br/>Income and Seats:",
+    IncAndSeats,
+    "</strong>",
+    "<br/>Median Income: $",
+    format(HouseholdIncome, big.mark = ","),
+    "<br/>Young Children: ",
+    format(kidsUnder3, big.mark = ","),
+    "<br/>Seats per 100 Kids: ",
+    seatsPer100Kids
+  )
+) %>%
   lapply(htmltools::HTML)
 
 
