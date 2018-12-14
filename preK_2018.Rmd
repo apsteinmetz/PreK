@@ -2,7 +2,36 @@
 title: "Pre-K 2018"
 output:  html_document
 ---
-# Load Libraries
+
+# Introduction
+
+This is an update of my earlier exploration in to the NYC Pre-Kindergarden program through bi-variate choropleth maps.  As I looked at what I originally did two years ago it looked so crude, mainly becuase the R toolchain has made amazing strides recently.  There has been an explosion of package functionality!  Then, I used static maps, shapefiles and an external PDF-to-text program and my methods were not entirely "tidy," partly because few R packages used the tidy paradigm.  Now we have `tidycensus` and `sf` which uses "simple features" data frames instead of shapefiles.  Personally, I find simple features objects so, well, simple and they are extensions of the familiar R data frame.  The addition of `geom_sf()` to ggplot2 opens up enormous capability.   Further, packages like `leaflet` and `plotly` now allow very sophisticated interactive mapping.  The `mapview` package makes it crazy simple to access interactive mapping.  All this evolution compelled me to go back to this exploration to the project, sourcing updated data, of course.
+
+A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots ( http://www.theatlantic.com/education/archive/2015/02/a-tale-of-two-pre-ks/385997/).  We will examine this propostion visually, using a bi-variate choropleth map.
+
+One cool thing about this exploration is we will weave together together three distinct rivers of data.  
+
+First, is the information about the pre-K program from the city.  We are mainly interested in the number of seats by zip code. To get this we have to download a separate directory for each borough in PDF format and scrape each one.
+
+Second, we need information about the number of pre-K-age children and income by each zip code. We'll get this from the census American Community Survery (which is conducted more frequently than the decennial census).  Thanks to `tidycensus` this is quite easy!
+
+Finally, we need geographic information about zip code boundaries.  The "Tigris" data at the census is now available in `sf` format thanks to the `tigris` package.
+
+The cup of the geospatial analyst using R really runneth over!
+
+Despite this embarassement of riches the one thing we still have to hand roll is a chart legend suitable for a bivarate map.  I have a good looking solution but it is still a hack. If I ever get the courage to make a pull request in ggplot2, I might propose a `legend_bv` thing.
+
+cool bi-variate choropleth maps! I had to invent a novel method in R to get a good looking bivariate legend onto the chart.
+
+
+
+
+Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).
+
+In my original version I use an outside program, PDFTOTEXT.EXE, to get parseable text out of the PDF documents at the NYC.gov web site.  I share the commented out code for this here but skip the step in the notebook to save run time.  Instead, I load the raw converted text files to illustrate the parsing.
+
+A further complication is to directly grab the income and population data from the census bureau requires an API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.  I comment out the relevant lines but instead provide the raw downloaded data sets to illustrate how they get manipulated.
+
 
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
@@ -276,6 +305,7 @@ ordered_combos <- c("Low, Few",
                     "High, Few",
                     "High, Average",
                     "High, Many")
+
 
 bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
 
