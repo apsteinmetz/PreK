@@ -11,27 +11,19 @@ A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pr
 
 One cool thing about this exploration is we will weave together together three distinct rivers of data.  
 
-First, is the information about the pre-K program from the city.  We are mainly interested in the number of seats by zip code. To get this we have to download a separate directory for each borough in PDF format and scrape each one.
+First, is the information about the pre-K program from the city.  We are mainly interested in the number of seats by zip code. To get this we have to download a separate directory for each borough in PDF format and scrape each one.  `pdftools` gets the job done.  This package is now in version 2.00 and adds some ability to extract tables, not just text, but the format of the city's directories is too pretty so we have design our own table parsing routines.
 
 Second, we need information about the number of pre-K-age children and income by each zip code. We'll get this from the census American Community Survery (which is conducted more frequently than the decennial census).  Thanks to `tidycensus` this is quite easy!
 
 Finally, we need geographic information about zip code boundaries.  The "Tigris" data at the census is now available in `sf` format thanks to the `tigris` package.
 
-The cup of the geospatial analyst using R really runneth over!
+The cup of the geospatial analyst using R really runneth over!  To make the point I'll show four different paths to making this map, ggplot2 and mapview (the easy ways), leaflet and plotly (the fancy ways).
 
 Despite this embarassement of riches the one thing we still have to hand roll is a chart legend suitable for a bivarate map.  I have a good looking solution but it is still a hack. If I ever get the courage to make a pull request in ggplot2, I might propose a `legend_bv` thing.
 
-cool bi-variate choropleth maps! I had to invent a novel method in R to get a good looking bivariate legend onto the chart.
+Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/).
 
-
-
-
-Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/). Thanks to Ari Lamstein for the awesome suite of choropleth packages (http://www.arilamstein.com/).
-
-In my original version I use an outside program, PDFTOTEXT.EXE, to get parseable text out of the PDF documents at the NYC.gov web site.  I share the commented out code for this here but skip the step in the notebook to save run time.  Instead, I load the raw converted text files to illustrate the parsing.
-
-A further complication is to directly grab the income and population data from the census bureau requires an API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.  I comment out the relevant lines but instead provide the raw downloaded data sets to illustrate how they get manipulated.
-
+Note that getting data from the census bureau requires a free API key.  You'll have to get your own here: http://api.census.gov/data/key_signup.html.
 
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
@@ -53,11 +45,8 @@ library(plotly)
 # -----------------------------------------------------------------------
 # get NYC data on pre-K programs in 2018
 # scan seat directory pdfs and put into a data frame by zip code
-#DOE pre-k directories
 
-
-
-#urls valid as of November 2018
+##DOE pre-k directories. URLs valid as of November 2018
 base_url <- "https://www.schools.nyc.gov/docs/default-source/default-document-library/"
 
 urls<-c(paste0(base_url,"2018nycprekdirectorybronx-english"),
@@ -78,7 +67,9 @@ if (!is.na(match(FALSE,file.exists(dests)))) {
 }
 ```
 
-Extract text from PDFs.  Select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It donly appears as a false positivee once in a facsimile of a listing in the interpretive guide.
+#Extract text from PDFs
+
+Select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It donly appears as a false positivee once in a facsimile of a listing in the interpretive guide.
 
 ![](img/one_listing.png)
 
@@ -158,7 +149,7 @@ Now that's what I'm talkin' about!  One of the most satisfying things in data sc
 #Get census data
 Income, population, population of school age children and census zip code geometries.
 
-Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the map data for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names.
+Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the zip code geometries for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names. It's easy enought to `spread` the data ourselves.
 
 ```{r message=FALSE, warning=FALSE}
 if (!file.exists("data/acs_dat.rdata")){
