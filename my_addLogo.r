@@ -1,41 +1,36 @@
-#test hand rolled image overlay
-library(tidyverse)
-library(htmlwidgets)
+#test hand rolled image overlay for use with MapView package.
+library(dplyr)
 library(leaflet)
 
-### local image
-my_localImage_html <- function(img, alpha=0.8, url, width=100, height=100) {
-  nm <- basename(img)
-  drs <- file.path(tempdir(), "graphs")
-  if (!dir.exists(drs)) dir.create(drs)
-  fls <- file.path(drs, nm)
-  invisible(file.copy(img, file.path(drs, nm)))
-  rel_path <- paste0('"', file.path("..", basename(drs), basename(img)), '"')
-  
-  style <- paste0(', style="opacity:',
+# convert a local image file to raw base64 and embed in HTML.
+
+# create HTML embedding a raw image
+img_html <- function(img,height=100,width=100,alpha = 1){
+  # style has no effect. Why?
+  style <- paste0('style="opacity:',
                   alpha,
                   ';filter:alpha(opacity=',
-                  alpha * 100, ');"')
-  
-  if (missing(url)) {
-    div_html <- paste0("<img src=", rel_path,
-                        ", width=", width, ", height=", height, style,
-                       ", ></a>")
-  } else {
-    div_html <- paste0("<a href=", url, "><img src=", rel_path,
-                       ", width=", width, ", height=", height, style,
-                       "></a>")
-  }
-  
-  return(div_html)
+                  alpha * 100, ')"')
+  #convert an image file to base 64 to embed raw data in HTML
+  img_raw <- knitr::image_uri(img)
+  legend_html<- paste0('<img src="',
+                       img_raw,'"',
+                       ', width=', width,',',
+                       'height=', height,',',
+                       style,'>') %>% 
+    htmltools::HTML()
+}
+my_addLogo <- function(map,img,position="topleft",alpha=1,height=100,width=100){
+  m <- map@map
+  m <- m %>%  
+    addControl(img_html("img/bv_legend.png",height=height,width=height,alpha=alpha),
+               position="topleft")
+  map@map <- m
+  return (map)
 }
 
-my_addLogo <- function(map,img,position="topleft",alpha=1,height=100,width=100){
-  html <- my_localImage_html(img=img,alpha,height,width)
-   methods::slot(map, "map") %>% addControl(html,position)
-  
-}
 
 #test
 mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
+
 
