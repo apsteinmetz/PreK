@@ -5,23 +5,17 @@ output:  html_document
 # Load Libraries
 
 ```{r message=FALSE, warning=FALSE}
-library(Hmisc) # cut2 for binning
-#library(choroplethr)
-#not on CRAN. Do an install the first time
-#devtools::install_github('arilamstein/choroplethrZip@v1.5.0')
-#library(choroplethrZip)
-#library(acs)  # retrieve census data
-#library(stringr)
-library(reshape2)
-#library(cowplot)
-#library(jpeg)
 library(tidyverse)
+library(Hmisc) # cut2 for binning
+library(reshape2) #melt to make bivariate legend
 library(tidycensus)
 library(tigris)
 library(sf)
 library(pdftools)
 #devtools::install_github("r-spatial/mapview@develop")
 library(mapview)
+library(leaflet)
+library(plotly)
 
 ```
 
@@ -35,11 +29,13 @@ library(mapview)
 
 
 #urls valid as of November 2018
-urls<-c("https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectorybronx-english",
-        "https://www.schools.nyc.gov/docs/default-source/default-document-library/nyc-pre-kindergarten-directory-brooklyn",
-        "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018-nyc-prek-directory-manhattan-english",
-        "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectoryqueens-english",
-        "https://www.schools.nyc.gov/docs/default-source/default-document-library/2018nycprekdirectorystatenislandenglishweb-english")
+base_url <- "https://www.schools.nyc.gov/docs/default-source/default-document-library/"
+
+urls<-c(paste0(base_url,"2018nycprekdirectorybronx-english"),
+        paste0(base_url,"nyc-pre-kindergarten-directory-brooklyn"),
+        paste0(base_url,"2018-nyc-prek-directory-manhattan-english"),
+        paste0(base_url,"2018nycprekdirectoryqueens-english"),
+        paste0(base_url,"2018nycprekdirectorystatenislandenglishweb-english"))
 
 boroughs <- c('Bronx','Brooklyn','Manhattan','Queens','Staten')
 
@@ -53,7 +49,10 @@ if (!is.na(match(FALSE,file.exists(dests)))) {
 }
 ```
 
-Extract text from PDFs.  Select only those pages that are directory listings and split into lines.
+Extract text from PDFs.  Select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It donly appears as a false positivee once in a facsimile of a listing in the interpretive guide.
+
+![](img/one_listing.png)
+
 ```{r}
 if (!file.exists("data/schools_2018.rdata")){
   # extract and combine text from PDFs
@@ -74,8 +73,8 @@ if (!file.exists("data/schools_2018.rdata")){
   listings <- listings %>% str_split("\\r?\\n") %>% unlist()
 }
 ```
+Now it's matter of coming up with appropriate regexes to extract the relevant fields and to determine the boundaries between records.
 
-Detect record boundaries and turn list of lines into a clean data frame of school listings.
 ```{r}
 if (!file.exists("data/schools_2018.rdata")){
   # regex to extract valid address
@@ -87,7 +86,7 @@ if (!file.exists("data/schools_2018.rdata")){
   record_end<-(lines_address-2)[-1] %>% append(length(listings))
   
   #----------------------------
-  #workhorse function to create a record with all relevant info about a school
+  # workhorse function to create a record with all relevant info about a school
   create_record <- function(rec_index){
     #rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
     rec <- listings[record_start[rec_index]:record_end[rec_index]]
@@ -98,6 +97,7 @@ if (!file.exists("data/schools_2018.rdata")){
     address <- str_remove(address," [0-9]{5}$")
     borough <- address %>% str_extract("[A-z]+(?= NY)")
     # the next two searches should be tolerant of not knowing line the field is on
+    # but assumes the first satisfaction of the regex is the relevant one.
     day_length <- str_extract(rec,"([A-Za-z]+)(?=-Day)")  %>% na.omit() %>% as.character() %>% .[1]
     seats = str_extract(rec,"(?<=Seats: )[0-9]+") %>% na.omit() %>% as.integer() %>% .[1]
     return(data_frame(name=name,
@@ -113,17 +113,26 @@ if (!file.exists("data/schools_2018.rdata")){
   
   #create data frame with a line for each school
   schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
-  schools_2018 <- schools_2018 %>% mutate(borough = ifelse(borough=="Island","Staten",borough))
+  # gussy it up a bit
+  schools_2018 <- schools_2018 %>% 
+    mutate(borough = ifelse(borough=="Island","Staten",borough)) %>% 
+    select(borough,zip,everything()) %>% 
+    arrange(borough,zip)
   save(schools_2018,file="data/schools_2018.rdata")
 }
+
+load("data/schools_2018.rdata")
+knitr::kable(schools_2018[1:10,])
 ```
-Get census data
+Now that's what I'm talkin' about!  One of the most satisfying things in data science, for me, is to take messy data and make it nice and tidy.  You would think this has implications for how I clean my bathroom, but, no.
+
+#Get census data
 Income, population, population of school age children and census zip code geometries.
 
 Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the map data for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names.
 
 ```{r message=FALSE, warning=FALSE}
-if (!file.exists("data/schools_2018.rdata")){
+if (!file.exists("data/acs_dat.rdata")){
   
   # I keep my census api key in a system variable. This adds it to the r environment 
   # with a label that tidycensus expects.
@@ -237,7 +246,7 @@ ggplot(all_data_2018,aes(incomeQuantile,seatsQuantile))+geom_point()+geom_smooth
 
 ```
 
-We are used to seeing univarate color maps but here we have two values, seats and income.  How might we code them into one variable. Given the social justice element of the original question, we might create a single scale of good to bad. So, for our purposes, high income and low seats is "good" along with low income and high seats.  Simply taking the difference between income and seats quantiles works.  The largest differences are "good.""
+We are used to seeing univarate color maps but here we have two values, seats and income.  How might we code them into one variable. Given the social justice element of the original question, we might create a single scale of good to bad. So, for our purposes, high income and low seats is "good" along with low income and high seats.  Simply taking the difference between income and seats quantiles works.  The largest differences are "good."
 
 ```{r}
 #combine income and seats into single factor, ordered
@@ -253,7 +262,7 @@ mapview(all_data_2018,zcol=c("combo"),
 
 It is so easy to make great looking maps now!
 
-There are problems with our analytic approach, though.  We have shoehorned two variables, income and seats into one, hard to interpret feature.  I label it "Affirmative Tilts."  Higher values mean more discrepency between the income quantile and the seats quantile which we call "good" but there is no real intuition behind the number.  Second, much of the value of the map is lost. We don't know which zip codes are high or low income, or have plenty or few seats - just that their is a big or small difference between the values.  To really tell the story we need to show two variables simultaneously on the map.
+There are problems with our analytic approach, though.  We have shoehorned two variables, income and seats into one, hard to interpret, feature.  I label it "Affirmative Tilts."  Higher values mean more discrepency between the income quantile and the seats quantile which we call "good" but there is no real intuition behind the number.  Second, much of the value of the map is lost. We don't know which zip codes are high or low income, or have plenty or few seats - just that their is a big or small difference between the values.  To really tell the story we need to show two variables simultaneously on the map.
 
 To create a bivariate map we add a new factor that is the character combination of the income bin and the seat count bin.
 
