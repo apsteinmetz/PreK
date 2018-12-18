@@ -15,7 +15,7 @@ First, is the information about the pre-K program from the city.  We are mainly 
 
 Second, we need information about the number of pre-K-age children and income by each zip code. We'll get this from the census American Community Survery (which is conducted more frequently than the decennial census).  Thanks to `tidycensus` this is quite easy!
 
-Finally, we need geographic information about zip code boundaries.  The "Tigris" data at the census is now available in `sf` format thanks to the `tigris` package.
+Finally, we need geographic information about zip code boundaries.  The TIGER data at the census is now available in `sf` format thanks to the `tigris` package.
 
 The cup of the geospatial analyst using R really runneth over!  To make the point I'll show four different paths to making this map, ggplot2 and mapview (the easy ways), leaflet and plotly (the fancy ways).
 
@@ -98,7 +98,6 @@ Now it's matter of coming up with appropriate regexes to extract the relevant fi
 ```{r}
 if (!file.exists("data/schools_2018.rdata")){
   # regex to extract valid address
-  #addresstokens <-"(Address: )['-./0-9 A-Za-z]+,[0-9 A-Za-z]+([0-9]{5})"
   addresstokens <-"(Address: ).+([0-9]{5})"
   #use lines containing address as anchor to mark record boundaries
   lines_address<-grep(addresstokens,listings)
@@ -108,7 +107,6 @@ if (!file.exists("data/schools_2018.rdata")){
   #----------------------------
   # workhorse function to create a record with all relevant info about a school
   create_record <- function(rec_index){
-    #rec <- listings[record_boundaries[rec_index,]$start:record_boundaries[rec_index,]$end]
     rec      <- listings[record_start[rec_index]:record_end[rec_index]]
     name     <- str_extract(rec[1],"(.+)(?=\\|)") %>% str_trim()
     district <- str_extract(rec[1],"(?<=\\| )[0-9]{2}") %>% str_trim() %>% as.integer()
@@ -155,6 +153,8 @@ Income, population, population of school age children and census zip code geomet
 
 Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the zip code geometries for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names. It's easy enought to `spread` the data ourselves.
 
+`tidycensus` has a great feature in that it can return an `sf` object with the geometries already provided but I won't use it because, for some unknown reason, when fetching by zip codes you must get EVERY zip code in the country, when you included the geometries that's a lot of data to suck up.  We can be much more efficient by getting the census data and TIGER data separately, then filtering for NYC zip codes.
+
 ```{r message=FALSE, warning=FALSE}
 if (!file.exists("data/acs_dat.rdata")){
   
@@ -188,9 +188,8 @@ if (!file.exists("data/acs_dat.rdata")){
   acs_table_kid <- "B05009_002" # children under 6
   acs_table_inc <- "B19013_001" # median income, last 12 months
   # NYC county codes
-  #nyc_fips = c("085","005", "047", "061", "081") # use as "county"
-  #nyc_geoids = c("36085","36005", "36047", "36061", "36081")
-  nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) # this comes from USPS web site
+  # this comes from USPS web site
+  nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) 
   
   # we can only use the zcta (zip code) geography if we fetch the whole country!
   acs_raw <- get_acs(geography = "zcta",
