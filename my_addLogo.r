@@ -31,6 +31,6 @@ my_addLogo <- function(map,img,position="topleft",alpha=1,height=100,width=100){
 
 
 #test
-mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
+#mv %>% my_addLogo(img = "img/bv_legend.png",width = 100,height=100)
 
 
