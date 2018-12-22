@@ -3,23 +3,31 @@ title: "Pre-K 2018"
 output:  html_document
 ---
 
-# Introduction
+# A Geographic Exploration of the NYC Free Pre-K program
 
-This is an update of my earlier exploration in to the NYC Pre-Kindergarden program through bi-variate choropleth maps.  As I looked at what I originally did two years ago it looked so crude, mainly becuase the R toolchain has made amazing strides recently.  There has been an explosion of package functionality!  Then, I used static maps, shapefiles and an external PDF-to-text program and my methods were not entirely "tidy," partly because few R packages used the tidy paradigm.  Now we have `tidycensus` and `sf` which uses "simple features" data frames instead of shapefiles.  Personally, I find simple features objects so, well, simple and they are extensions of the familiar R data frame.  The addition of `geom_sf()` to ggplot2 opens up enormous capability.   Further, packages like `leaflet` and `plotly` now allow very sophisticated interactive mapping.  The `mapview` package makes it crazy simple to access interactive mapping.  All this evolution compelled me to go back to this exploration to the project, sourcing updated data, of course.
+## Preface: What I will cover
+
+Getting data from PDF files, census data, TIGER map data in "simple features" form and mashing it all together.
+Choropleth maps using multiple packages for comparison.
+Introducing a unique scheme to create bi-variate legends for maps.
+
+## Introduction
+
+This is an update of my earlier exploration of the NYC Pre-Kindergarden program through bi-variate choropleth maps.  As I looked at what I originally did two years ago it looked so crude, mainly becuase the R toolchain has made amazing strides recently.  There has been an explosion of package functionality!  Then, I used static maps, shapefiles and an external PDF-to-text program and my methods were not entirely "tidy," partly because few R packages used the tidy paradigm.  Now we have `tidycensus` and `sf` which uses "simple features" data frames instead of shapefiles.  Personally, I find simple features objects so, well, simple and they are extensions of the familiar R data frame.  The addition of `geom_sf()` to ggplot2 opens up enormous capability.   Further, packages like `leaflet` and `plotly` now allow very sophisticated interactive mapping.  The `mapview` package makes it crazy simple to access interactive mapping.  All this evolution compelled me to go back to this project, sourcing updated data, of course.
 
 A hallmark of mayoral administration of NYC Mayor Bill DeBlasio has been free pre-K for all New York families.  When the program was initially rolled out there were complaints in some quarters that upper-income neighborhoods were getting more slots ( http://www.theatlantic.com/education/archive/2015/02/a-tale-of-two-pre-ks/385997/).  We will examine this propostion visually, using a bi-variate choropleth map.
 
 One cool thing about this exploration is we will weave together together three distinct rivers of data.  
 
-First, is the information about the pre-K program from the city.  We are mainly interested in the number of seats by zip code. To get this we have to download a separate directory for each borough in PDF format and scrape each one.  `pdftools` gets the job done.  This package is now in version 2.00 and adds some ability to extract tables, not just text, but the format of the city's directories is too pretty so we have design our own table parsing routines.
+First, is the information about the pre-K program from the city.  We are mainly interested in the number of seats by zip code. To get this we have to download a separate directory for each borough in PDF format and scrape each one.  `pdftools` gets the job done.  This package is now in version 2.00 and adds some ability to extract tables, not just text, but the format of the city's directories is too "pretty" so we have design our own table parsing routines.
 
-Second, we need information about the number of pre-K-age children and income by each zip code. We'll get this from the census American Community Survery (which is conducted more frequently than the decennial census).  Thanks to `tidycensus` this is quite easy!
+Second, we need information about the number of pre-K-age children and income by each zip code. We'll get this from the census American Community Survey (which is conducted more frequently than the decennial census).  Thanks to `tidycensus` this is quite easy!
 
 Finally, we need geographic information about zip code boundaries.  The TIGER data at the census is now available in `sf` format thanks to the `tigris` package.
 
-The cup of the geospatial analyst using R really runneth over!  To make the point I'll show four different paths to making this map, ggplot2 and mapview (the easy ways), leaflet and plotly (the fancy ways).
+The cup of the geospatial analyst using R really runneth over!  To make the point I'll show five different paths to making this map, base R, ggplot2 and mapview (the easy ways), leaflet and plotly (the fancy ways).
 
-Despite this embarassement of riches the one thing we still have to hand roll is a chart legend suitable for a bivarate map.  I have a good looking solution but it is still a hack. If I ever get the courage to make a pull request in ggplot2, I might propose a `legend_bv` thing.
+Despite this embarassement of riches the one thing we still have to hand roll is a chart legend suitable for a bivarate map.  I have a good-looking solution but it is still a hack. If I ever get the courage to make a pull request in ggplot2, I might propose a `legend_bv` thing.
 
 Thanks to Joshua Stevens for the inspiration and color theory of bi-variate maps (http://www.joshuastevens.net/cartography/make-a-bivariate-choropleth-map/).
 
@@ -27,22 +35,19 @@ Note that getting data from the census bureau requires a free API key.  You'll h
 
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
-library(Hmisc) # cut2 for binning
 library(tidycensus)
 library(tigris)
 library(sf)
 library(pdftools)
-#devtools::install_github("r-spatial/mapview@develop")
 library(mapview)
 library(leaflet)
 library(plotly)
-
-source('my_addLogo.r')
-
 ```
+# Download NYC PRE-K PDF Directories
 
+Throughout this notebook you'll notice I save data files at intermediate steps and include code that skips sections if the relevant data file already exists.  It makes it easy to change bits of the notebook and quickly re-run the whole thing.
 ```{r}
-# download and scrape NYC PRE-K pdf directories
+
 # -----------------------------------------------------------------------
 # get NYC data on pre-K programs in 2018
 # scan seat directory pdfs and put into a data frame by zip code
@@ -68,7 +73,7 @@ if (!is.na(match(FALSE,file.exists(dests)))) {
 }
 ```
 
-#Extract text from PDFs
+## Extract Text from PDFs
 
 Select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It only appears as a false positive once in the interpretive key.
 
@@ -142,11 +147,11 @@ if (!file.exists("data/schools_2018.rdata")){
     select(borough,zip,everything()) %>% 
     arrange(borough,zip)
   save(schools_2018,file="data/schools_2018.rdata")
+knitr::kable(schools_2018[1:10,])
+```
 }
 
 load("data/schools_2018.rdata")
-knitr::kable(schools_2018[1:10,])
-```
 
 Now that's what I'm talkin' about!  One of the most satisfying things in data science, for me, is to take messy data and make it nice and tidy.  You would think this has implications for how I clean my bathroom, but, no.
 
@@ -155,7 +160,7 @@ Income, population, population of school age children and census zip code geomet
 
 Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the zip code geometries for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names. It's easy enought to `spread` the data ourselves.
 
-`tidycensus` has a great feature in that it can return an `sf` object with the geometries already provided but I won't use it because, for some unknown reason, when fetching by zip codes you must get EVERY zip code in the country, when you included the geometries that's a lot of data to suck up.  We can be much more efficient by getting the census data and TIGER data separately, then filtering for NYC zip codes.
+`tidycensus` has a great feature in that it can return an `sf` object with the geometries already provided but I won't use it because, for some unknown reason, when fetching by zip codes you must get EVERY zip code in the USA, when you include the geometries that's a lot of data to suck up.  We can be much more efficient by getting the census data and TIGER data separately, then filtering for NYC zip codes.
 
 ```{r message=FALSE, warning=FALSE}
 if (!file.exists("data/acs_dat.rdata")){
@@ -177,7 +182,7 @@ if (!file.exists("data/acs_dat.rdata")){
   
   geo_nyc_zips <- geo_nyc_zips_raw %>% rename(zip= ZCTA5CE10) %>% select(zip,geometry)
   
-  #The returned set of geometries includes long island and Westchester so
+  #The returned set of geometries includes Long Island and Westchester so
   #crop the bounding box to get a better sized map.
   nyc_box<-c(xmin=-74.5,ymin=40.5,xmax=-73.6,ymax=41.0)
   geo_nyc_zips <-geo_nyc_zips %>%  st_crop(nyc_box)
@@ -191,6 +196,7 @@ if (!file.exists("data/acs_dat.rdata")){
   acs_table_inc <- "B19013_001" # median income, last 12 months
   # NYC county codes
   # this comes from USPS web site
+  # get the file from my github repo if you like
   nyc_zips <- read_tsv("data/nyc zip codes.txt") %>% rename(zip=ZIP) 
   
   # we can only use the zcta (zip code) geography if we fetch the whole country!
@@ -239,7 +245,6 @@ all_data_2018 <- geo_nyc_zips %>%
   mutate(schools=ifelse(is.na(schools),0,schools)) %>% 
   mutate(numSeats=ifelse(schools==0,0,numSeats)) 
   
-
 #add per-capita variables
 all_data_2018 <- all_data_2018 %>% 
   mutate(seatsPer100Kids = round(numSeats/kidsUnder3*100,digits=1),
@@ -264,35 +269,58 @@ levels(all_data_2018$incomeBin) = c("Low","Average","High")
 
 save(all_data_2018,file="data/alldata2018.rdata")
 ```
-#The Problem with a Univariate Approach
+#Are Wealthy Neighborhoods Getting Too Many Seats?
 
-Initially, we can just view a scatter plot of the quantiles.  Here we see that there is scant relationship between zip code income and per-child seats over most of the range.  The is a cluster of high-income zip codes at the lower end of the seat count.  This alone discounts the notion that the wealthy are getting more than their fair share of seats.
+Initially, we can just view a scatter plot of the quantiles.  Here we see that there is scant relationship between zip code income and per-child seats over most of the range.  There is a cluster of high-income zip codes at the lower end of the seat count.  This alone discounts the notion that the wealthy are getting more than their fair share of seats.  This "merely" visual approach tells us enough.  We might leave it at that, content that there is no evidence of social injustice, but this is an issue where maps can tell a much richer story.
 ```{r message=FALSE}
 ggplot(all_data_2018,aes(incomeQuantile,seatsQuantile))+geom_point()+geom_smooth()
 
 ```
 
+# Make Some Pretty Maps
+
 We are used to seeing univarate color maps but here we have two values, seats and income.  How might we code them into one variable. Given the social justice element of the original question, we might create a single scale of good to bad. So, for our purposes, high income and low seats is "good" along with low income and high seats.  Simply taking the difference between income and seats quantiles works.  The largest differences are "good."
 
 ```{r}
-#combine income and seats into single factor, ordered
-#by "desirability."
+#combine income and seats into single metric
+#bigger is better
 all_data_2018 <- all_data_2018 %>% 
-  mutate(combo = abs(seatsQuantile - incomeQuantile))
-
-mapview(all_data_2018,zcol=c("combo"),
-        map.types="OpenStreetMap.BlackAndWhite",
-        layer.name =  "Affirmative Tilts",
-        popup = NULL)
+  mutate(disparity = abs(seatsQuantile - incomeQuantile))
 ```
 
-It is so easy to make great looking maps now!
+I will present maps generated by several different packages because I can't leave well enough alone.  All are great but have varying aesthetics.  You can pick what appeals to your taste.  Nowadays, we often ignore the base plot functions but the `sf` package includes a `plot` method for sf objects.  so you can create a good looking map with no work at all.
 
-#Let's Get Bivariate
+```{r}
+all_data_2018 %>% select(disparity) %>% plot()
+```
 
-There are problems with our analytic approach, though.  We have shoehorned two variables, income and seats into one, hard to interpret, feature.  I label it "Affirmative Tilts."  Higher values mean more discrepency between the income quantile and the seats quantile which we call "good" but there is no real intuition behind the number.  Second, much of the value of the map is lost. We don't know which zip codes are high or low income, or have plenty or few seats - just that their is a big or small difference between the values.  To really tell the story we need to show two variables simultaneously on the map.
+Whaat?  That's it?  It looks great!  You can clearly see by the lighter colors where the disparity between income and seats is the widest.  If base R graphics are your thing, you can now annotate to your hearts content.
 
-To create a bivariate map we add a new factor that is the character combination of the income bin and the seat count bin.  Then we are done monkeying with our data set.  We can look at the zip code for Amazon's new NYC HQ it illustrate what we've got.
+The `plot` method will automatically facet the plot if you include more than one feature column.  Let's look at the seats and income quantiles.
+```{r}
+all_data_2018 %>% select(seatsQuantile,incomeQuantile) %>% plot()
+```
+
+Now let's make the first map with the venerable ggplot2.
+```{r}
+all_data_2018 %>% ggplot(aes(fill=disparity)) + geom_sf()
+```
+
+Once again, so easy. Amazing!  Now let's kick it up to the next level. The maps so far have been islands adrift from any geographic context.  They are also static.  We might wish to zoom in for more detail.  The first thing anybody does with Google Earth is zoom in on their own house, after all.  The advent of the `leaflet` package brings "base maps" and interactivity our maps.  This is accomplished through HTML "widgets" that bring non-R code into your workstream at the cost of potential complexity, as we shall see.  Fortunately, the fantastic `mapview` package wraps `leaflet` to make it as easy as the foregoing approaches.
+```{r}
+mapview(all_data_2018,
+        zcol=c("disparity"),
+        map.types="OpenStreetMap.BlackAndWhite",
+        layer.name =  "Disparity")
+```
+
+Click, drag and scroll to zoom.  It is so easy to make great looking maps now!
+
+# The Problem with a Univariate Approach
+
+As wonderful as these maps are, there are problems with our analytic approach, though.  We have shoehorned two variables, income and seats into one, hard to interpret, feature.  I label it "Disparity."  Higher values mean more discrepency between the income quantile and the seats quantile, which we call "good," but there is no real intuition behind the number.  Second, much of the value of the map is lost. We don't know which zip codes are high or low income, or have plenty or few seats - just that their is a big or small difference between the values.  To really tell the story we need to show two variables simultaneously on the map.
+
+To create a bivariate map we add a new factor that is the character combination of the income bin and the seat count bin.  Then we are done monkeying with our data set.  We can look at the zip code for Amazon's new NYC HQ to illustrate what we've got.
 
 ```{r}
 ordered_combos <- c("Low, Few",
@@ -314,8 +342,7 @@ all_data_2018 <- all_data_2018 %>%
 all_data_2018 %>% filter(zip==11101)
 ```
 
-We saw how easy it is to make a map with `mapview.`  Going forward we want more control over layers and other map features so we'll directly access the package `mapview` wraps, which is `leaflet.`
-
+We saw how easy it is to make a map with `mapview.`  Going forward we want more control over layers and other map features so we'll directly access the package underneath `mapview`, which is `leaflet.`
 
 ```{r message=FALSE, warning=FALSE}
 # This largely follows the leaflet tutorial at
@@ -364,7 +391,7 @@ all_data_2018 %>%
 ```
 
 
-##Custom roll a bi-variate legend
+## Custom Roll a Bi-variate Legend
 
 So there's the map.  We can immediately see the problem with the default legend, it's the uni-dimensional nature of the legend even though we have a bi-variate color scheme.
 
@@ -389,9 +416,31 @@ ggsave("img/bv_legend.png",lg,width = 20,height=20,units="mm")
 
 ```
 
+##Convert the Legend Image to HTML
+
+There is one more tricky thing we need to do.  Leaflet will create an arbitrary image layer but it expects HTML code to do it so we have to convert our image file.  Honestly, I think that's a pain that the R user shouldn't have to mess with.  The same thing applies to generating the popups like we did above.  Anyhoo, let's create a funtion to do that.
+```{r}
+# convert a local image file to raw base64 and embed in HTML.
+# create HTML embedding a raw image
+
+img_html <- function(img,height=100,width=100,alpha = 1){
+  # style has no effect. Why?
+  style <- paste0('style="opacity:',
+                  alpha,
+                  ';filter:alpha(opacity=',
+                  alpha * 100, ')"')
+  #convert an image file to base 64 to embed raw data in HTML
+  img_raw <- knitr::image_uri(img)
+  legend_html<- paste0('<img src="', img_raw,'"',
+                       ', width=', width,',',
+                       'height=', height,',',
+                       style,'>') %>% 
+    htmltools::HTML()
+}
+```
 Now render the map.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # This largely follows the leaflet tutorial at
 # https://rstudio.github.io/leaflet/choropleths.html
 
@@ -415,7 +464,7 @@ all_data_2018 %>%
     bringToFront = TRUE),
   label = popup_html
   ) %>% 
-  addControl(img_html("img/bv_legend.png",height=120,width=120,alpha=0.8),position="topleft")
+  addControl(img_html("img/bv_legend.png",width=150,height=150),position="topleft")
 
 ```
 
