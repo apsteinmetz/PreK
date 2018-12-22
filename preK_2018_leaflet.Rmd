@@ -5,11 +5,11 @@ output:  html_document
 
 # A Geographic Exploration of the NYC Free Pre-K program
 
-## Preface: What I will cover
+## Preface: What I Will Cover
 
-Getting data from PDF files, census data, TIGER map data in "simple features" form and mashing it all together.
-Choropleth maps using multiple packages for comparison.
-Introducing a unique scheme to create bi-variate legends for maps.
+1. Getting data from PDF files, census data, TIGER map data in "simple features" form and mashing it all together.
+2. Choropleth maps using multiple packages for comparison.
+3. Introducing a unique scheme to create bi-variate legends for maps.
 
 ## Introduction
 
@@ -43,7 +43,7 @@ library(mapview)
 library(leaflet)
 library(plotly)
 ```
-# Download NYC PRE-K PDF Directories
+## Download NYC PRE-K PDF Directories
 
 Throughout this notebook you'll notice I save data files at intermediate steps and include code that skips sections if the relevant data file already exists.  It makes it easy to change bits of the notebook and quickly re-run the whole thing.
 ```{r}
@@ -75,7 +75,7 @@ if (!is.na(match(FALSE,file.exists(dests)))) {
 
 ## Extract Text from PDFs
 
-Select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It only appears as a false positive once in the interpretive key.
+Select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It only appears as a false positive once in the interpretive key. Here's what a single entry looks like in the PDF file:
 
 ![](img/one_listing.png)
 
@@ -93,7 +93,6 @@ if (!file.exists("data/schools_2018.rdata")){
     listings <- append(listings,txt)
     # file.remove(dests[i])
   }
-  
   #text is in one page per item
   #divide listings into separate lines
   listings <- listings %>% str_split("\\r?\\n") %>% unlist()
@@ -137,7 +136,7 @@ if (!file.exists("data/schools_2018.rdata")){
                       day_length=day_length))
     
   }
-  #----------------------------
+  #-----------------------
   
   #create data frame with a line for each school
   schools_2018 <- 1:length(record_start) %>% map(create_record) %>% bind_rows()
@@ -147,20 +146,20 @@ if (!file.exists("data/schools_2018.rdata")){
     select(borough,zip,everything()) %>% 
     arrange(borough,zip)
   save(schools_2018,file="data/schools_2018.rdata")
+
+}
+load("data/schools_2018.rdata")
 knitr::kable(schools_2018[1:10,])
 ```
-}
-
-load("data/schools_2018.rdata")
 
 Now that's what I'm talkin' about!  One of the most satisfying things in data science, for me, is to take messy data and make it nice and tidy.  You would think this has implications for how I clean my bathroom, but, no.
 
-#Get census data
+# Get Census Data
 Income, population, population of school age children and census zip code geometries.
 
 Here, I am making an aesthetic choice. I want to use wide, not tidy data because duplicating the zip code geometries for every variable seems wasteful and doing math on multiple variables is easier with wide data.  `get_acs` will optionally return wide data but I don't like the column names. It's easy enought to `spread` the data ourselves.
 
-`tidycensus` has a great feature in that it can return an `sf` object with the geometries already provided but I won't use it because, for some unknown reason, when fetching by zip codes you must get EVERY zip code in the USA, when you include the geometries that's a lot of data to suck up.  We can be much more efficient by getting the census data and TIGER data separately, then filtering for NYC zip codes.
+`tidycensus` has a great feature in that it can return an `sf` object with the geometries already provided but I won't use it because, for some unknown reason, when fetching by zip codes you must get EVERY zip code in the USA. When you include the geometries that's a lot of data to suck up.  We can be much more efficient by getting the census data and TIGER data separately, then filtering for NYC zip codes.
 
 ```{r message=FALSE, warning=FALSE}
 if (!file.exists("data/acs_dat.rdata")){
@@ -268,8 +267,9 @@ levels(all_data_2018$seatsBin) = c("Few","Average","Many")
 levels(all_data_2018$incomeBin) = c("Low","Average","High")
 
 save(all_data_2018,file="data/alldata2018.rdata")
+all_data_2018[1:5,]
 ```
-#Are Wealthy Neighborhoods Getting Too Many Seats?
+# Are Wealthy Neighborhoods Getting Too Many Seats?
 
 Initially, we can just view a scatter plot of the quantiles.  Here we see that there is scant relationship between zip code income and per-child seats over most of the range.  There is a cluster of high-income zip codes at the lower end of the seat count.  This alone discounts the notion that the wealthy are getting more than their fair share of seats.  This "merely" visual approach tells us enough.  We might leave it at that, content that there is no evidence of social injustice, but this is an issue where maps can tell a much richer story.
 ```{r message=FALSE}
@@ -316,7 +316,7 @@ mapview(all_data_2018,
 
 Click, drag and scroll to zoom.  It is so easy to make great looking maps now!
 
-# The Problem with a Univariate Approach
+## The Problem with a Univariate Approach
 
 As wonderful as these maps are, there are problems with our analytic approach, though.  We have shoehorned two variables, income and seats into one, hard to interpret, feature.  I label it "Disparity."  Higher values mean more discrepency between the income quantile and the seats quantile, which we call "good," but there is no real intuition behind the number.  Second, much of the value of the map is lost. We don't know which zip codes are high or low income, or have plenty or few seats - just that their is a big or small difference between the values.  To really tell the story we need to show two variables simultaneously on the map.
 
@@ -416,7 +416,7 @@ ggsave("img/bv_legend.png",lg,width = 20,height=20,units="mm")
 
 ```
 
-##Convert the Legend Image to HTML
+## Convert the Legend Image to HTML
 
 There is one more tricky thing we need to do.  Leaflet will create an arbitrary image layer but it expects HTML code to do it so we have to convert our image file.  Honestly, I think that's a pain that the R user shouldn't have to mess with.  The same thing applies to generating the popups like we did above.  Anyhoo, let's create a funtion to do that.
 ```{r}
@@ -468,7 +468,7 @@ all_data_2018 %>%
 
 ```
 
-Bonus! Compare 2016 to 2018
+# Bonus! Compare 2016 to 2018
 ```{r}
 # aggregate seat count by borough
 
