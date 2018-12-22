@@ -306,7 +306,7 @@ Now let's make the first map with the venerable ggplot2.
 all_data_2018 %>% ggplot(aes(fill=disparity)) + geom_sf()
 ```
 
-Once again, so easy. Amazing!  Now let's kick it up to the next level. The maps so far have been islands adrift from any geographic context.  They are also static.  We might wish to zoom in for more detail.  The first thing anybody does with Google Earth is zoom in on their own house, after all.  The advent of the `leaflet` package brings "base maps" and interactivity our maps.  This is accomplished through HTML "widgets" that bring non-R code into your workstream at the cost of potential complexity, as we shall see.  Fortunately, the fantastic `mapview` package wraps `leaflet` to make it as easy as the foregoing approaches.
+Once again, so easy. Amazing!  Now let's kick it up to the next level. The maps so far have been islands adrift from any geographic context.  They are also static.  We might wish to zoom in for more detail.  The first thing anybody does with Google Earth is zoom in on their own house, after all.  The advent of the `leaflet` package brings "base maps" and interactivity to our maps.  This is accomplished through HTML "widgets" that bring non-R code into your workstream at the cost of potential complexity, as we shall see.  Fortunately, the fantastic `mapview` package wraps `leaflet` to make it as easy as the foregoing approaches.
 ```{r}
 mapview(all_data_2018,
         zcol=c("disparity"),
@@ -397,7 +397,7 @@ So there's the map.  We can immediately see the problem with the default legend,
 
 Here is where the interesting hack comes in.  No mapping packages I am aware of have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R in `leafet`?  Yes!  The `leaflet` package allows for insertion of image layers.
 
-To create the legend we 'simply' create a heat map of the 3x3 bins in the map and label the axes appropriately and save the image.  Then, using `addcontorl(), shove it into a corner of the map.
+To create the legend we 'simply' create a heat map of the 3x3 bins in the map, label the axes appropriately and save the image.  Then, using `addcontrol(), shove it into a corner of the map.
 
 ```{r message=FALSE}
 
@@ -496,6 +496,7 @@ sumSeats2016<-schools_2018 %>% select(borough,zip) %>%
 sumSeats <- bind_rows(sumSeats2016,sumSeats2018) %>% mutate(year=as.factor(year))
 ggplot(sumSeats,aes(borough,schools,fill=year)) + 
   geom_col(position = "dodge") + 
+  scale_fill_manual(values=bvColors[c(1,6)]) +
   scale_y_continuous(labels=scales::comma) + 
   labs(title = "Expansion of NYC Free Pre-K",
        caption = "source: nyc.gov",
@@ -507,6 +508,7 @@ ggplot(sumSeats,aes(borough,schools,fill=year)) +
 ggplot(sumSeats,aes(borough,numSeats,fill=year)) + 
   geom_col(position = "dodge") + 
   scale_y_continuous(labels=scales::comma) +
+  scale_fill_manual(values=bvColors[c(1,6)]) +
   labs(title = "Expansion of NYC Free Pre-K",
        caption = "source: nyc.gov",
        x = "Borough",
