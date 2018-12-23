@@ -397,23 +397,35 @@ So there's the map.  We can immediately see the problem with the default legend,
 
 Here is where the interesting hack comes in.  No mapping packages I am aware of have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R in `leafet`?  Yes!  The `leaflet` package allows for insertion of image layers.
 
-To create the legend we 'simply' create a heat map of the 3x3 bins in the map, label the axes appropriately and save the image.  Then, using `addcontrol(), shove it into a corner of the map.
+To create the legend we 'simply' create a 3x3 tile plot matching the fill colors in the map, label the axes appropriately and save the image.  Then, using `addcontrol(), shove it into a corner of the map.
 
 ```{r message=FALSE}
 
-#first create a legend plot
-legendGoal = data_frame(Var1=c(rep(1:3,3)),Var2=c(1,1,1,2,2,2,3,3,3),value=1:9)
-lg <- ggplot(legendGoal, aes(Var2, Var1, fill = as.factor(value))) + geom_tile()
-lg <- lg + scale_fill_manual(name = "", values = bvColors)
-lg <- lg + theme(legend.position = "none")
-lg <- lg + theme(axis.title.x = element_text(size = rel(0.5), color = bvColors[3])) + 
-  xlab(" More Income -->")
-lg <- lg + theme(axis.title.y = element_text(size = rel(0.5), color = bvColors[3])) + 
-  ylab("   More Seats -->")
-lg <- lg + theme(axis.text = element_blank())
-lg <- lg + theme(line = element_blank())
-ggsave("img/bv_legend.png",lg,width = 20,height=20,units="mm")
+create_bv_legend_img <- function(file="bv_legend.png",
+                                 xlabel="Var1",
+                                 ylabel="Var2",
+                                 bvColors=NULL){
+# Create a 3x3 legend plot
+  if (is.null(bvColors)){
+    bvColors=c("#be64ac","#8c62aa","#3b4994","#dfb0d6","#a5add3","#5698b9","#e8e8e8","#ace4e4","#5ac8c8")
+  }
+  legendGoal = data_frame(Var1=c(rep(1:3,3)),Var2=c(1,1,1,2,2,2,3,3,3),value=1:9)
+  lg <- ggplot(legendGoal, aes(Var2, Var1, fill = as.factor(value))) + geom_tile()
+  lg <- lg + scale_fill_manual(name = "", values = bvColors)
+  lg <- lg + theme(legend.position = "none")
+  lg <- lg + theme(axis.title.x = element_text(size = rel(0.5), color = bvColors[3])) + 
+    xlab(xlabel)
+  lg <- lg + theme(axis.title.y = element_text(size = rel(0.5), color = bvColors[3])) + 
+    ylab(ylabel)
+  lg <- lg + theme(axis.text = element_blank())
+  lg <- lg + theme(line = element_blank())
+  ggsave(file,lg,width = 20,height=20,units="mm")
+}
 
+create_bv_legend_img("img/bv_legend.png",
+                     xlabel=" More Income -->",
+                     ylabel="   More Seats -->",
+                     bvColors = bvColors)
 ```
 
 ## Convert the Legend Image to HTML
