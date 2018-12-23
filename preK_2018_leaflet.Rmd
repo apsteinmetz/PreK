@@ -75,10 +75,11 @@ if (!is.na(match(FALSE,file.exists(dests)))) {
 
 ## Extract Text from PDFs
 
-Select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It only appears as a false positive once in the interpretive key. Here's what a single entry looks like in the PDF file:
+Here's what a single entry looks like in the PDF file:
 
 ![](img/one_listing.png)
 
+We want to select only those pages that are directory listings and split into lines.  The `pdf_text` function splits each page into a list item of text.  To identify those pages which have listings we chose a term that is unlikely to appear elsewhere in the document.  I chose "Playspace."  It only appears as a false positive once in the interpretive key. 
 ```{r}
 if (!file.exists("data/schools_2018.rdata")){
   # extract and combine text from PDFs
@@ -397,7 +398,11 @@ So there's the map.  We can immediately see the problem with the default legend,
 
 Here is where the interesting hack comes in.  No mapping packages I am aware of have a facility for a bivariate legend.  The beautiful plots Joshua Stevens shows on his web page use a dedicated graphic composition program.  Can we cobble something up in R in `leafet`?  Yes!  The `leaflet` package allows for insertion of image layers.
 
-To create the legend we 'simply' create a 3x3 tile plot matching the fill colors in the map, label the axes appropriately and save the image.  Then, using `addcontrol(), shove it into a corner of the map.
+To create the legend we 'simply' create a 3x3 tile plot matching the fill colors in the map, label the axes appropriately and save the image.
+
+Leaflet will create an arbitrary image layer but it expects HTML code to do it so we have to convert our image file.  Honestly, I think that's a pain that the R user shouldn't have to mess with.  The same thing applies to generating the popups like we did above.  Anyhoo, let's create a funtion to do that.
+
+Finally, we roll another function that acts like `leaflet::addLegend()`.  Note the data is irrelevant to legend creation. The user is responsible for binning the data into nine levels that align with the order of the colors used in the legend.
 
 ```{r message=FALSE}
 
@@ -426,12 +431,7 @@ create_bv_legend_img("img/bv_legend.png",
                      xlabel=" More Income -->",
                      ylabel="   More Seats -->",
                      bvColors = bvColors)
-```
 
-## Convert the Legend Image to HTML
-
-There is one more tricky thing we need to do.  Leaflet will create an arbitrary image layer but it expects HTML code to do it so we have to convert our image file.  Honestly, I think that's a pain that the R user shouldn't have to mess with.  The same thing applies to generating the popups like we did above.  Anyhoo, let's create a funtion to do that.
-```{r}
 # convert a local image file to raw base64 and embed in HTML.
 # create HTML embedding a raw image
 
@@ -449,8 +449,27 @@ img_html <- function(img,height=100,width=100,alpha = 1){
                        style,'>') %>% 
     htmltools::HTML()
 }
+
+# bring it together in a function that can be used in place of the leaflet addLegend function
+# CAUTION: no error checking
+# Note the data is irrelevant. The user is responsible for binning the data into nine levels
+# that align with the order of the colors used in the legend.
+addBVLegend <-function(map,
+                       position = c("topright", "bottomright", "bottomleft", "topleft"), 
+                       colors, xlabel,ylabel,
+                       width=100,height=100){
+      position <- match.arg(position)
+      create_bv_legend_img("bv_legend.png",
+                     xlabel=xlabel,
+                     ylabel=ylabel,
+                     bvColors = colors)
+      img <- img_html("bv_legend.png",width=width,height=height)
+      file.remove("bv_legend.png")
+      addControl(map,img,position=position)
+}
 ```
-Now render the map.
+## It All Comes Together
+
 
 ```{r message=FALSE, warning=FALSE}
 # This largely follows the leaflet tutorial at
@@ -476,7 +495,11 @@ all_data_2018 %>%
     bringToFront = TRUE),
   label = popup_html
   ) %>% 
-  addControl(img_html("img/bv_legend.png",width=150,height=150),position="topleft")
+  addBVLegend(width=150,height=150,
+              colors = bvColors,
+              position="topleft",
+              xlabel=" More Income -->",
+              ylabel="   More Seats -->")
 
 ```
 
