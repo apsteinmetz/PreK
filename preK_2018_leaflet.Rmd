@@ -457,7 +457,8 @@ img_html <- function(img,height=100,width=100,alpha = 1){
 addBVLegend <-function(map,
                        position = c("topright", "bottomright", "bottomleft", "topleft"), 
                        colors, xlabel,ylabel,
-                       width=100,height=100){
+                       width=100,height=100,
+                       layerId = NULL){
       position <- match.arg(position)
       create_bv_legend_img("bv_legend.png",
                      xlabel=xlabel,
@@ -465,7 +466,7 @@ addBVLegend <-function(map,
                      bvColors = colors)
       img <- img_html("bv_legend.png",width=width,height=height)
       file.remove("bv_legend.png")
-      addControl(map,img,position=position)
+      addControl(map,img,position=position,layerId = layerId)
 }
 ```
 ## It All Comes Together
@@ -477,30 +478,33 @@ addBVLegend <-function(map,
 
 pal <- colorFactor(bvColors, domain = all_data_2018$IncAndSeats)
 
-all_data_2018 %>% 
+prek_map<- all_data_2018 %>% 
   leaflet() %>% 
   addProviderTiles(providers$OpenStreetMap.BlackAndWhite) %>% 
   addPolygons(
-  fillColor = ~pal(IncAndSeats),
-  weight = 1,
-  opacity = 1,
-  color = "black",
-  dashArray = "",
-  fillOpacity = 0.7,
-  highlight = highlightOptions(
-    weight = 5,
+    group = "2018",
+    fillColor = ~pal(IncAndSeats),
+    weight = 1,
+    opacity = 1,
     color = "black",
     dashArray = "",
     fillOpacity = 0.7,
-    bringToFront = TRUE),
-  label = popup_html
+    highlight = highlightOptions(
+      weight = 5,
+      color = "black",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE),
+    label = popup_html
   ) %>% 
   addBVLegend(width=150,height=150,
               colors = bvColors,
               position="topleft",
               xlabel=" More Income -->",
-              ylabel="   More Seats -->")
+              ylabel="   More Seats -->",
+              layerId = "2018")
 
+prek_map
 ```
 
 # Bonus! Compare 2016 to 2018
@@ -516,12 +520,10 @@ sumSeats2018 <- schools_2018 %>%
 
 
 load("data/alldata2016.rdata") 
-all_data_2016 <-allData
-rm(allData)
 #2016 data doesn't have boroughs so map zips to boroughs from 2018 data
 sumSeats2016<-schools_2018 %>% select(borough,zip) %>% 
   unique() %>% 
-  right_join(all_data_2016,by=c("zip")) %>%
+  right_join(allData,by=c("zip")) %>%
   select(borough,schools,numSeats) %>% 
   group_by(borough) %>% 
   summarise(schools = sum(schools), 
@@ -529,17 +531,7 @@ sumSeats2016<-schools_2018 %>% select(borough,zip) %>%
   mutate(year=as.integer(2016))
 
 sumSeats <- bind_rows(sumSeats2016,sumSeats2018) %>% mutate(year=as.factor(year))
-ggplot(sumSeats,aes(borough,schools,fill=year)) + 
-  geom_col(position = "dodge") + 
-  scale_fill_manual(values=bvColors[c(1,6)]) +
-  scale_y_continuous(labels=scales::comma) + 
-  labs(title = "Expansion of NYC Free Pre-K",
-       caption = "source: nyc.gov",
-       x = "Borough",
-       y = "Number of Schools")
-```
 
-```{r}
 ggplot(sumSeats,aes(borough,numSeats,fill=year)) + 
   geom_col(position = "dodge") + 
   scale_y_continuous(labels=scales::comma) +
@@ -551,20 +543,19 @@ ggplot(sumSeats,aes(borough,numSeats,fill=year)) +
 
 ```
 
+Now let's really explore the power of leaflet by adding adding the 2016 data and a layer showing the changes.  The user can toggle any layer on and off.  
 ```{r}
-load("data/alldata2016.rdata") 
-all_data_2016 <-allData
-rm(allData)
-
+# create a data set of changes
 seats_delta<- all_data_2018 %>% 
   select(zip,geometry,numSeats) %>% 
   rename(numSeats_2018=numSeats) %>% 
-  left_join(all_data_2016) %>% 
+  left_join(allData) %>% 
   na.omit() %>% 
   rename(numSeats_2016=numSeats) %>% 
   mutate(zip=zip,
+         seatsChange16to18=numSeats_2018-numSeats_2016, 
          seatsPctChange16to18=round((numSeats_2018/numSeats_2016-1)*100,0)) %>% 
-  select(zip,numSeats_2016,numSeats_2018,seatsPctChange16to18) %>% 
+  select(zip,numSeats_2016,numSeats_2018,seatsChange16to18,seatsPctChange16to18) %>% 
   {.}
 
 # chop down huge percentages
@@ -574,77 +565,64 @@ seats_delta <- seats_delta %>%
 #add spatial geometry to 2016 data
 all_data_2016 <- all_data_2018 %>% 
   select(zip,geometry) %>% 
-  left_join(all_data_2016) %>% 
+  left_join(allData) %>% 
   na.omit() %>% 
   mutate(IncAndSeats = factor(paste0(incomeBin,", ",seatsBin),
                         levels = ordered_combos))
 
+# create the html for the data that will pop up when the mouse hovers over each zip code
+popup_html_2016<- with(
+  all_data_2016,
+  paste0(
+    "ZIP Code :","<strong>",zip,"</strong>",
+    "<br/>Income and Seats:","<strong>",IncAndSeats,"</strong>",
+    "<br/>Median Income: $","<strong>",format(HouseholdIncome, big.mark = ","),"</strong>",
+    "<br/>Young Children: ","<strong>",format(kidsUnder3, big.mark = ","),"</strong>",
+    "<br/>Seats per 100 Kids: ","<strong>",seatsPer100Kids,"</strong>"
+  )
+) %>%
+  lapply(htmltools::HTML)
 
-popup_html_2016<-popupTable(all_data_2016,
-           zcol=c("IncAndSeats","HouseholdIncome","kidsUnder3", "seatsPer100Kids","zip"),
-           row.numbers = FALSE) %>% 
-  # this does comma formatting of the HTML string for income.  Thanks, Stack Overflow!
-  str_replace("(?<=\\d)(?=(\\d\\d\\d)+(?!\\d))",",") %>% 
-  #get rid of superfluous features
-  str_replace("<tr><td><\\/td><td><b>geometry.+\\/tr>","") %>% 
-  str_replace("(<td><b>Feature ID.*?\\/tr>)(?=<tr class)","") %>% 
-  # make feature labels nicer looking
-  str_replace("IncAndSeats","Income and Seats") %>%
-  str_replace("HouseholdIncome","Median Income") %>%
-  str_replace("kidsUnder3","Young Children") %>%
-  str_replace("seatsPer100Kids","Seats per 100 Kids") %>%
-  str_replace("zip","ZIP Code") %>%
-  {.}
-
-mv_2016 <- mapview(all_data_2016,zcol=c("IncAndSeats"),
-        popup = popup_html_2016,
-        col.regions = bvColors,
-        map.types="OpenStreetMap.BlackAndWhite",
-        layer.name = "Income and Seats 2016",
-        legend = FALSE) %>% 
-    #addLogo("img/bv_legend.png",src = "local",
-    #        position = "topleft",width=100,height=100,offset.x = 70) %>%
-    {.}
-
-
-  
-  
-
-mv_delta<- mapview(seats_delta,zcol=c("seatsPctChange16to18"),
-                   popup = popup_html,
-                   map.types="OpenStreetMap.BlackAndWhite",
-                   layer.name = "Change in Seats\n 2016-2016") %>% 
-  {.}
-
-
-#mv_all %>%   leaflet::addLayersControl(overlayGroups=c("Income and Seats 2016",
-#                           "Income and Seats 2018",
-#                           "Change in Seats 2016-2016"))
+popup_html_delta<- with(
+  seats_delta,
+  paste0(
+    "ZIP Code :","<strong>",zip,"</strong>",
+    "<br/>Change in Seats:","<strong>",seatsChange16to18,"</strong>",
+    "<br/>Percentage Change in Seats: ","<strong>",seatsPctChange16to18,"</strong>"
+  )
+) %>%
+  lapply(htmltools::HTML)
 
 
 ```
-
-Try all this in leaflet.
-
-First create a handy helper function.  This will turn any image into inline html code that is easy to add to any of the leaflet controls.  We will use it to make our bivariate legend.  This is a very useful and reusable function.
+Now we have the layer data sets so we can add them to our already built map.
 ```{r}
-# create HTML embedding a raw image
-img_html <- function(img,height=100,width=100,alpha = 1){
-  # style has no effect. Why?
-  style <- paste0('style="opacity:',
-                  alpha,
-                  ';filter:alpha(opacity=',
-                  alpha * 100, ')"')
-  #convert an image file to base 64 to embed raw data in HTML
-  img_raw <- knitr::image_uri(img)
-  legend_html<- paste0('<img src="',
-                       img_raw,'"',
-                       ', width=', width,',',
-                       'height=', height,',',
-                       style,'>') %>% 
-    htmltools::HTML()
-  return(legend_html)
-}
-```
+#add 2016 data
+prek_maps <- prek_map %>% 
+  addPolygons(
+    data=all_data_2016,
+    group = "2016",
+    fillColor = ~pal(IncAndSeats),
+    weight = 1,
+    opacity = 1,
+    color = "black",
+    dashArray = "",
+    fillOpacity = 0.7,
+    highlight = highlightOptions(
+      weight = 5,
+      color = "black",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE),
+    label = popup_html
+  )
 
+
+#add delta layer
+
+prek_maps <- prek_maps %>%  addLayersControl(
+    baseGroups = c("2018","2016"),
+    options = layersControlOptions(collapsed = FALSE))
+prek_maps
+```
 
