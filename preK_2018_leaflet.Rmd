@@ -614,14 +614,34 @@ prek_maps <- prek_map %>%
       dashArray = "",
       fillOpacity = 0.7,
       bringToFront = TRUE),
-    label = popup_html
+    label = popup_html_2016
   )
 
-
+pal2 <- colorQuantile(bvColors, domain = seats_delta$seatsPctChange16to18)
 #add delta layer
+prek_maps <- prek_maps %>%
+  addPolygons(
+    data=seats_delta,
+    group = "Change in Seats",
+    fillColor = ~pal2(seatsPctChange16to18),
+    weight = 1,
+    opacity = 1,
+    color = "black",
+    dashArray = "",
+    fillOpacity = 0.7,
+    highlight = highlightOptions(
+      weight = 5,
+      color = "black",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE),
+    label = popup_html_delta
+  ) %>% 
+  addLegend(pal = pal2,group = "Change in Seats",values=seats_delta$seatsPctChange16to18)
 
 prek_maps <- prek_maps %>%  addLayersControl(
-    baseGroups = c("2018","2016"),
+#    baseGroups = c("2018","2016"),
+    baseGroups = c("2018","2016","Change in Seats"),
     options = layersControlOptions(collapsed = FALSE))
 prek_maps
 ```
